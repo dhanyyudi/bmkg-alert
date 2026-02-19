@@ -3,7 +3,24 @@
 Real-time Indonesian weather warning system powered by BMKG Nowcast data.
 Monitor specific locations (kecamatan level) and receive instant notifications via Telegram, Discord, Slack, Email, or Webhook when severe weather approaches.
 
-**[Live Demo →](https://bmkg.dhanypedia.it.com)** · Try the 24-hour Telegram trial from the demo site.
+**[Live Demo →](https://bmkg-alert.dhanypedia.it.com/)** · Try the 24-hour Telegram trial from the demo site.
+
+---
+
+## Screenshots
+
+![Dashboard](image/main-dashboard.png)
+
+<table>
+  <tr>
+    <td><img src="image/warning-map-design.png" alt="Warning Map"/></td>
+    <td><img src="image/detail-infographic-modal.png" alt="Detail Infographic"/></td>
+  </tr>
+  <tr>
+    <td><img src="image/weather-page.png" alt="Weather Page"/></td>
+    <td><img src="image/trymode-telegram-page.png" alt="Try Mode"/></td>
+  </tr>
+</table>
 
 ---
 
@@ -32,7 +49,7 @@ Monitor specific locations (kecamatan level) and receive instant notifications v
 ### Run with Docker
 
 ```bash
-git clone https://github.com/dhanypedia/bmkg-alert.git
+git clone https://github.com/dhanyyudi/bmkg-alert.git
 cd bmkg-alert
 
 # Copy and fill in your configuration
