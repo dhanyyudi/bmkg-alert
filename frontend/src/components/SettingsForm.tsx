@@ -388,7 +388,7 @@ const CONFIG_FIELDS = [
     { key: 'quiet_hours_start', label: 'Quiet Hours Mulai', placeholder: '22:00' },
     { key: 'quiet_hours_end', label: 'Quiet Hours Selesai', placeholder: '06:00' },
     { key: 'quiet_hours_override_severe', label: 'Override untuk Severe/Extreme (true/false)', placeholder: 'true' },
-    { key: 'bmkg_api_url', label: 'BMKG API URL', placeholder: 'https://bmkg-restapi.vercel.app' },
+    { key: 'bmkg_api_url', label: 'BMKG API URL', placeholder: 'https://bmkg-restapi.vercel.app', readOnly: true },
     { key: 'notification_language', label: 'Bahasa Notifikasi (id/en)', placeholder: 'id' },
 ];
 
@@ -452,13 +452,20 @@ const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
             {CONFIG_FIELDS.map(f => (
                 <div key={f.key} className="space-y-1">
                     <label className="text-sm font-medium">{f.label}</label>
-                    <Input
-                        type={f.type ?? 'text'}
-                        placeholder={f.placeholder}
-                        value={config[f.key] ?? ''}
-                        onChange={e => setConfig(c => ({ ...c, [f.key]: e.target.value }))}
-                        disabled={demoMode}
-                    />
+                    {f.readOnly ? (
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-slate-50 dark:bg-slate-900 text-sm font-mono text-slate-600 dark:text-slate-400 select-all">
+                            {config[f.key] ?? f.placeholder}
+                            <span className="ml-auto text-[10px] font-sans uppercase tracking-wide text-slate-400 shrink-0">Server</span>
+                        </div>
+                    ) : (
+                        <Input
+                            type={f.type ?? 'text'}
+                            placeholder={f.placeholder}
+                            value={config[f.key] ?? ''}
+                            onChange={e => setConfig(c => ({ ...c, [f.key]: e.target.value }))}
+                            disabled={demoMode}
+                        />
+                    )}
                 </div>
             ))}
             <Button onClick={save} disabled={demoMode || saving} className="w-full mt-2" title={demoMode ? DEMO_TOOLTIP : undefined}>
