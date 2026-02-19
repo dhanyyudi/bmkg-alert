@@ -315,7 +315,7 @@ export const Dashboard: React.FC = () => {
                             <CardTitle>Peringatan Aktif</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                                 {alerts.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-[200px] text-slate-400">
                                         <CloudRain className="h-10 w-10 mb-2 opacity-20" />
@@ -358,19 +358,19 @@ export const Dashboard: React.FC = () => {
                     </Card>
 
                     {/* Recent Activity Feed */}
-                    <Card className="flex-1 flex flex-col min-h-0">
+                    <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm">Aktivitas Terkini</CardTitle>
                             <button onClick={fetchActivity} className="text-xs text-muted-foreground hover:text-foreground">
                                 ↻ Refresh
                             </button>
                         </CardHeader>
-                        <CardContent className="flex-1 min-h-0 overflow-hidden">
-                            <div className="space-y-2 h-full overflow-y-auto pr-1">
+                        <CardContent>
+                            <div className="space-y-2">
                                 {activityFeed.length === 0 ? (
                                     <p className="text-xs text-muted-foreground text-center py-4">Belum ada aktivitas</p>
                                 ) : (
-                                    activityFeed.map(entry => (
+                                    activityFeed.slice(0, 5).map(entry => (
                                         <div key={entry.id} className="flex items-start gap-2 text-xs">
                                             <span className="text-slate-400 shrink-0 w-14 text-right">
                                                 {fmtRelative(entry.created_at)}

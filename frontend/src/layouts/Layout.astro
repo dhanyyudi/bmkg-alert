@@ -23,8 +23,7 @@ const { title } = Astro.props;
 		<script is:inline>
 			(function() {
 				const saved = localStorage.getItem('bmkg-theme');
-				const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-				if (saved === 'dark' || (!saved && prefersDark)) {
+				if (saved === 'dark') {
 					document.documentElement.classList.add('dark');
 				}
 			})();
