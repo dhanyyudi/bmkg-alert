@@ -73,6 +73,7 @@ export const TryMode: React.FC = () => {
     const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
     const [loadingStatus, setLoadingStatus] = useState(true);
     const [cancelling, setCancelling] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
     const [sendingTest, setSendingTest] = useState(false);
     const [now, setNow] = useState(Date.now());
 
@@ -162,11 +163,12 @@ export const TryMode: React.FC = () => {
         if (!trialStatus?.id) return;
         setCancelling(true);
         try {
-            await api.delete(`/trial/${trialStatus.id}`);
+            await api.delete(`/trial/${trialStatus.id}?chat_id=${encodeURIComponent(chatId)}`);
             toast.info('Trial dihentikan');
             localStorage.removeItem(TRIAL_CHAT_KEY);
             setTrialStatus({ active: false });
             setSelectedLocation(null);
+            setConfirmCancel(false);
         } catch (e: any) {
             toast.error(e?.message ?? 'Gagal menghentikan trial');
         } finally {
@@ -258,15 +260,46 @@ export const TryMode: React.FC = () => {
                             {sendingTest ? 'Mengirim...' : 'Kirim Pesan Tes ke Telegram'}
                         </Button>
 
-                        <Button
-                            variant="outline"
-                            onClick={handleCancel}
-                            disabled={cancelling}
-                            className="w-full text-red-600 border-red-200 hover:bg-red-50"
-                        >
-                            <X className="w-4 h-4 mr-2" />
-                            {cancelling ? 'Menghentikan...' : 'Hentikan Trial'}
-                        </Button>
+                        {confirmCancel ? (
+                            <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900 p-4 space-y-3">
+                                <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                                    Yakin ingin menghentikan trial?
+                                </p>
+                                <p className="text-xs text-red-600/80 dark:text-red-500">
+                                    Notifikasi akan langsung berhenti dan trial tidak bisa diaktifkan kembali tanpa mendaftar ulang.
+                                </p>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={handleCancel}
+                                        disabled={cancelling}
+                                        className="flex-1"
+                                    >
+                                        <X className="w-3.5 h-3.5 mr-1.5" />
+                                        {cancelling ? 'Menghentikan...' : 'Ya, Hentikan'}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setConfirmCancel(false)}
+                                        disabled={cancelling}
+                                        className="flex-1"
+                                    >
+                                        Batal
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                onClick={() => setConfirmCancel(true)}
+                                className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                                <X className="w-4 h-4 mr-2" />
+                                Hentikan Trial
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             </div>

@@ -10,32 +10,38 @@ import { Button } from '@/components/ui/button';
 import { WarningMap } from '@/components/WarningMap';
 import { api } from '@/lib/api';
 
-type ActivityEntry = {
-    id: number;
-    event_type: string;
-    message: string | null;
-    details: string | null;
-    created_at: string | null;
+type EarthquakeEvent = {
+    datetime: string;
+    magnitude: number;
+    depth_km: number;
+    region: string;
+    tsunami_potential: string | null;
+    felt_report: string | null;
 };
 
+// Formats a UTC ISO string as WIB time (Asia/Jakarta, UTC+7)
 const fmtTime = (iso: string | null) => {
     if (!iso) return '-';
-    try { return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+    try {
+        return new Date(iso).toLocaleTimeString('id-ID', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            timeZone: 'Asia/Jakarta',
+        }) + ' WIB';
+    }
     catch { return iso; }
 };
+
+const normalizeUtc = (iso: string) =>
+    /Z$|[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso.replace(' ', 'T') + 'Z';
 
 const fmtRelative = (iso: string | null) => {
     if (!iso) return '-';
     try {
-        // SQLite CURRENT_TIMESTAMP returns "YYYY-MM-DD HH:MM:SS" (UTC, no tz suffix).
-        // Without normalization JS parses it as local time → 7-hour offset in WIB.
-        const normalized = /Z$|[+-]\d{2}:\d{2}$/.test(iso)
-            ? iso
-            : iso.replace(' ', 'T') + 'Z';
-        const diff = Math.floor((Date.now() - new Date(normalized).getTime()) / 1000);
+        const diff = Math.floor((Date.now() - new Date(normalizeUtc(iso)).getTime()) / 1000);
         if (diff < 60) return `${diff}d lalu`;
         if (diff < 3600) return `${Math.floor(diff / 60)}m lalu`;
-        return `${Math.floor(diff / 3600)}j lalu`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}j lalu`;
+        return `${Math.floor(diff / 86400)}h lalu`;
     } catch { return '-'; }
 };
 
@@ -43,7 +49,7 @@ export const Dashboard: React.FC = () => {
     const status = useStore(engineStatus);
     const alerts = useStore(activeAlerts);
     const admin = useStore(isAdmin);
-    const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>([]);
+    const [eqFeed, setEqFeed] = useState<EarthquakeEvent[]>([]);
     const [checkingNow, setCheckingNow] = useState(false);
     const [showAdminLogin, setShowAdminLogin] = useState(false);
     const [adminPw, setAdminPw] = useState('');
@@ -52,10 +58,29 @@ export const Dashboard: React.FC = () => {
     const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
     const [now, setNow] = useState(Date.now());
 
-    const fetchActivity = useCallback(async () => {
+    const fetchEventFeed = useCallback(async () => {
         try {
-            const res = await api.get<{ data: ActivityEntry[] }>('/activity?limit=20');
-            setActivityFeed(res.data ?? []);
+            const [recentRes, feltRes] = await Promise.allSettled([
+                api.get<{ data: EarthquakeEvent[] }>('/earthquake/recent'),
+                api.get<{ data: EarthquakeEvent[] }>('/earthquake/felt'),
+            ]);
+
+            const recent: EarthquakeEvent[] = recentRes.status === 'fulfilled' ? (recentRes.value.data ?? []) : [];
+            const felt: EarthquakeEvent[] = feltRes.status === 'fulfilled' ? (feltRes.value.data ?? []) : [];
+
+            // Merge both lists, deduplicate by datetime+region, sort newest first
+            const seen = new Set<string>();
+            const merged = [...recent, ...felt]
+                .filter(eq => {
+                    const key = `${eq.datetime}|${eq.region}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
+                .sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
+                .slice(0, 6);
+
+            setEqFeed(merged);
         } catch { /* silent */ }
     }, []);
 
@@ -73,16 +98,16 @@ export const Dashboard: React.FC = () => {
     useEffect(() => {
         fetchEngineStatus();
         fetchActiveAlerts();
-        fetchActivity();
+        fetchEventFeed();
         fetchStats();
         const interval = setInterval(() => {
             fetchEngineStatus();
             fetchActiveAlerts();
-            fetchActivity();
+            fetchEventFeed();
             fetchStats();
         }, 30000);
         return () => clearInterval(interval);
-    }, [fetchActivity, fetchStats]);
+    }, [fetchEventFeed, fetchStats]);
 
     // Tick every second for real-time countdown
     useEffect(() => {
@@ -135,7 +160,7 @@ export const Dashboard: React.FC = () => {
             setTimeout(() => {
                 fetchEngineStatus();
                 fetchActiveAlerts();
-                fetchActivity();
+                fetchEventFeed();
             }, 500);
         } catch (e) {
             console.error(e);
@@ -156,9 +181,30 @@ export const Dashboard: React.FC = () => {
         return m > 0 ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`;
     })();
 
+    // Map BMKG event name to a weather emoji icon
+    const getWeatherIcon = (event: string) => {
+        const e = (event ?? '').toLowerCase();
+        if (e.includes('petir') || e.includes('thunder')) return '⛈️';
+        if (e.includes('angin') || e.includes('puting beliung')) return '💨';
+        if (e.includes('gelombang') || e.includes('banjir')) return '🌊';
+        return '🌧️';
+    };
+
+    // Highlight province/region name after the last " di " in a headline string
+    const highlightRegion = (text: string) => {
+        const idx = text.lastIndexOf(' di ');
+        if (idx === -1) return <>{text}</>;
+        return (
+            <>
+                {text.slice(0, idx + 4)}
+                <span className="font-semibold text-amber-600 dark:text-amber-400">{text.slice(idx + 4)}</span>
+            </>
+        );
+    };
+
     return (
         <>
-        <div className="space-y-6">
+        <div className="flex flex-col flex-1 min-h-0 gap-6">
             {/* Demo Mode Banner */}
             {status.demo_mode && (
                 <div className="flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
@@ -253,7 +299,10 @@ export const Dashboard: React.FC = () => {
                         <AlertTriangle className="h-4 w-4 text-orange-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{alerts.length}</div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-bold">{alerts.length}</span>
+                            <span className="text-sm text-muted-foreground font-medium">warnings</span>
+                        </div>
                         <p className="text-xs text-muted-foreground">Dari BMKG Nowcast</p>
                     </CardContent>
                 </Card>
@@ -277,7 +326,10 @@ export const Dashboard: React.FC = () => {
                         <Radio className="h-4 w-4 text-purple-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{locationCount}</div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-bold">{locationCount}</span>
+                            <span className="text-sm text-muted-foreground font-medium">area</span>
+                        </div>
                         <p className="text-xs text-muted-foreground">Kecamatan aktif</p>
                     </CardContent>
                 </Card>
@@ -287,35 +339,38 @@ export const Dashboard: React.FC = () => {
                         <CloudRain className="h-4 w-4 text-sky-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{alertStats?.alerts_this_month ?? '-'}</div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="text-2xl font-bold">{alertStats?.alerts_this_month ?? '-'}</span>
+                            <span className="text-sm text-muted-foreground font-medium">alert</span>
+                        </div>
                         <p className="text-xs text-muted-foreground">Total: {alertStats?.total_alerts ?? '-'}</p>
                     </CardContent>
                 </Card>
             </div>
 
             {/* Map + Alert List + Activity Feed */}
-            <div className="grid gap-4 md:grid-cols-7 md:items-stretch">
-                {/* Map (4/7) */}
-                <div className="col-span-4 flex flex-col">
+            <div className="flex-1 min-h-0 grid gap-4 md:grid-cols-[5fr_3fr]">
+                {/* Map (5/8) */}
+                <div className="flex flex-col min-h-0">
                     <Card className="flex-1 flex flex-col">
                         <CardHeader>
                             <CardTitle>Warning Map</CardTitle>
                         </CardHeader>
                         <CardContent className="flex-1 p-0 min-h-0">
-                            <WarningMap alerts={alerts} className="h-full w-full min-h-[400px]" />
+                            <WarningMap alerts={alerts} className="h-full w-full min-h-[300px]" />
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Right column (3/7): Active Alerts + Activity Feed */}
-                <div className="col-span-3 flex flex-col gap-4">
+                {/* Right column (3/8): Active Alerts + Activity Feed */}
+                <div className="flex flex-col gap-4 min-h-0">
                     {/* Active Alerts */}
-                    <Card>
+                    <Card className="flex-1 flex flex-col min-h-0">
                         <CardHeader>
                             <CardTitle>Peringatan Aktif</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                        <CardContent className="flex-1 min-h-0 overflow-hidden">
+                            <div className="space-y-3 h-full overflow-y-auto pr-1">
                                 {alerts.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-[200px] text-slate-400">
                                         <CloudRain className="h-10 w-10 mb-2 opacity-20" />
@@ -331,23 +386,28 @@ export const Dashboard: React.FC = () => {
                                         };
                                         const badgeClass = severityColor[alert.severity?.toLowerCase() ?? ''] ?? 'bg-slate-400 text-white';
                                         const expiresDate = alert.expires
-                                            ? new Date(alert.expires).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
+                                            ? new Date(alert.expires).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Jakarta' })
                                             : '-';
                                         return (
                                             <div
                                                 key={alert.identifier}
-                                                className="flex items-start gap-2 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                className="flex items-start gap-2.5 text-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg p-2 -mx-2 transition-colors"
                                                 onClick={() => setSelectedAlert(alert)}
                                             >
+                                                <span className="shrink-0 mt-0.5 text-base leading-none">
+                                                    {getWeatherIcon(alert.event)}
+                                                </span>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between mb-1 gap-1 flex-wrap">
-                                                        <h4 className="font-semibold text-xs leading-tight truncate">{alert.event || 'Alert'}</h4>
-                                                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${badgeClass}`}>
+                                                    <div className="flex items-center gap-1 flex-wrap mb-0.5">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+                                                            {alert.event || 'Alert'}
+                                                        </span>
+                                                        <span className={`shrink-0 px-1 py-0.5 rounded text-[10px] font-bold ${badgeClass}`}>
                                                             {alert.severity}
                                                         </span>
                                                     </div>
-                                                    <p className="text-xs text-slate-500 line-clamp-1">{alert.headline || alert.description}</p>
-                                                    <div className="mt-1 text-xs text-slate-400">Berakhir: {expiresDate}</div>
+                                                    <p className="text-slate-500 line-clamp-2">{highlightRegion(alert.headline || alert.description)}</p>
+                                                    <span className="text-slate-400 mt-0.5 block">Berakhir: {expiresDate}</span>
                                                 </div>
                                             </div>
                                         );
@@ -357,31 +417,36 @@ export const Dashboard: React.FC = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Recent Activity Feed */}
+                    {/* Gempa Terkini */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm">Aktivitas Terkini</CardTitle>
-                            <button onClick={fetchActivity} className="text-xs text-muted-foreground hover:text-foreground">
+                            <CardTitle className="text-sm">Gempa Terkini</CardTitle>
+                            <button onClick={fetchEventFeed} className="text-xs text-muted-foreground hover:text-foreground">
                                 ↻ Refresh
                             </button>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-2">
-                                {activityFeed.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground text-center py-4">Belum ada aktivitas</p>
+                            <div className="space-y-2.5">
+                                {eqFeed.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground text-center py-4">Belum ada data gempa</p>
                                 ) : (
-                                    activityFeed.slice(0, 5).map(entry => (
-                                        <div key={entry.id} className="flex items-start gap-2 text-xs">
-                                            <span className="text-slate-400 shrink-0 w-14 text-right">
-                                                {fmtRelative(entry.created_at)}
-                                            </span>
-                                            <div>
-                                                <span className="font-medium text-slate-600 dark:text-slate-300">
-                                                    {entry.event_type}
-                                                </span>
-                                                {entry.message && (
-                                                    <span className="text-slate-500"> — {entry.message}</span>
+                                    eqFeed.map((eq, i) => (
+                                        <div key={i} className="flex items-start gap-2 text-xs">
+                                            <span className="shrink-0 mt-0.5 text-base leading-none">🌍</span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1">
+                                                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                                        M{eq.magnitude.toFixed(1)}
+                                                    </span>
+                                                    {eq.tsunami_potential?.toLowerCase().includes('berpotensi') && (
+                                                        <span className="px-1 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">Potensi Tsunami</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-slate-500 truncate mt-0.5">{eq.region}</p>
+                                                {eq.felt_report && (
+                                                    <p className="text-slate-400 truncate">Dirasakan: {eq.felt_report}</p>
                                                 )}
+                                                <span className="text-slate-400 mt-0.5 block">{fmtRelative(eq.datetime)}</span>
                                             </div>
                                         </div>
                                     ))

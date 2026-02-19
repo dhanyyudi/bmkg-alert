@@ -99,10 +99,13 @@ def format_expiry_message(
     )
 
 
-def _format_time(iso_str: str) -> str:
+def _format_time(iso_str) -> str:
     """Format ISO timestamp to a human-readable Indonesian time string."""
     if not iso_str:
         return "-"
+    # Accept datetime objects as well as ISO strings
+    if hasattr(iso_str, 'isoformat'):
+        iso_str = iso_str.isoformat()
     # Parse and format — the BMKG API already includes timezone offset
     # We just clean it up for display
     try:

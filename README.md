@@ -197,6 +197,7 @@ Key endpoints:
 | `GET` | `/api/v1/channels` | Notification channels |
 | `POST` | `/api/v1/channels` | Add channel |
 | `POST` | `/api/v1/trial/register` | Register 24h Telegram trial |
+| `DELETE` | `/api/v1/trial/{id}?chat_id=` | Cancel trial (requires owner's chat_id) |
 | `GET` | `/api/v1/weather/{adm4}` | BMKG weather forecast |
 
 ---

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { splitRings } from '@/lib/polygon';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +39,51 @@ type Delivery = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Highlight area names in description text with amber styling. */
+function highlightAreas(text: string, areaNames: string[]): React.ReactNode[] {
+    const names = areaNames.filter(Boolean);
+    if (!text || names.length === 0) return [text];
+    const escaped = names
+        .sort((a, b) => b.length - a.length)
+        .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
+    return text.split(regex).map((part, i) =>
+        names.some(n => n.toLowerCase() === part.toLowerCase())
+            ? <mark key={i} className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded px-0.5 font-medium not-italic">{part}</mark>
+            : part
+    );
+}
+
+/** Return an emoji icon for the alert event type. */
+function getEventIcon(event: string | null): string {
+    const e = (event ?? '').toLowerCase();
+    if (e.includes('petir') || e.includes('badai') || e.includes('thunderstorm')) return '⛈️';
+    if (e.includes('angin') || e.includes('wind')) return '💨';
+    if (e.includes('tsunami')) return '🌊';
+    if (e.includes('hujan') || e.includes('rain')) return '🌧️';
+    if (e.includes('panas') || e.includes('kering') || e.includes('hot')) return '☀️';
+    if (e.includes('kabut') || e.includes('fog')) return '🌫️';
+    if (e.includes('gempa') || e.includes('earthquake')) return '🌍';
+    if (e.includes('banjir') || e.includes('flood')) return '🌊';
+    return '⚠️';
+}
+
+/** Map known backend error patterns to user-friendly Indonesian descriptions. */
+function explainDeliveryError(msg: string): React.ReactNode {
+    if (msg.includes("argument of type 'datetime.datetime' is not a container or iterable")) {
+        return (
+            <span>
+                Gagal memformat waktu pada pesan notifikasi{' '}
+                <span className="text-slate-400 text-xs">(internal: datetime type error)</span>
+            </span>
+        );
+    }
+    if (msg.length > 150) {
+        return <span title={msg}>{msg.slice(0, 147)}…</span>;
+    }
+    return msg;
+}
+
 const SEVERITY_CLASS: Record<string, string> = {
     extreme:  'bg-red-900 text-white',
     severe:   'bg-red-500 text-white',
@@ -71,34 +117,54 @@ const parsePolygonData = (raw: AreaPolygon[] | string | null): AreaPolygon[] => 
 interface MiniMapProps {
     areas: AreaPolygon[];
     color: string;
+    className?: string;
 }
 
-const MiniMap: React.FC<MiniMapProps> = ({ areas, color }) => {
-    const features = areas
-        .filter(a => a.polygon && a.polygon.length > 0)
-        .map(a => ({
-            type: 'Feature' as const,
-            geometry: {
-                type: 'Polygon' as const,
-                coordinates: [a.polygon!.map(([lat, lon]) => [lon, lat])],
-            },
-            properties: { name: a.name, color },
-        }));
+const MiniMap: React.FC<MiniMapProps> = ({ areas, color, className = 'h-56' }) => {
+    // Build one GeoJSON Feature per ring (same as WarningMap)
+    const features: GeoJSON.Feature[] = [];
+    for (const a of areas) {
+        if (!a.polygon || a.polygon.length === 0) continue;
+        const rings = splitRings(a.polygon);
+        for (const ring of rings) {
+            features.push({
+                type: 'Feature' as const,
+                geometry: { type: 'Polygon' as const, coordinates: [ring] },
+                properties: { name: a.name, color },
+            });
+        }
+    }
 
     if (features.length === 0) {
         return (
-            <div className="h-48 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-muted-foreground">
+            <div className={`flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-muted-foreground ${className}`}>
                 Tidak ada data polygon tersedia
             </div>
         );
     }
 
+    // Auto-fit: compute bounding box from all ring coordinates
+    const allCoords = features.flatMap(f => (f.geometry as GeoJSON.Polygon).coordinates[0]);
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (const [lon, lat] of allCoords) {
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+    }
+    const span = Math.max(maxLon - minLon, maxLat - minLat);
+    const zoom = span < 0.3 ? 10 : span < 0.7 ? 9 : span < 1.5 ? 8 : span < 3 ? 7 : span < 6 ? 6 : span < 12 ? 5 : 4;
+
     const geoJson: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features };
 
     return (
-        <div className="h-56 rounded-lg overflow-hidden border">
+        <div className={`rounded-lg overflow-hidden border ${className}`}>
             <Map
-                initialViewState={{ longitude: 118, latitude: -2.5, zoom: 4 }}
+                initialViewState={{
+                    longitude: (minLon + maxLon) / 2,
+                    latitude: (minLat + maxLat) / 2,
+                    zoom,
+                }}
                 style={{ width: '100%', height: '100%' }}
                 mapStyle="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
                 attributionControl={false}
@@ -187,7 +253,10 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                    <h1 className="text-2xl font-bold">{alert.event ?? 'Alert'}</h1>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <span role="img" aria-label="event icon">{getEventIcon(alert.event)}</span>
+                        {alert.event ?? 'Alert'}
+                    </h1>
                     <p className="text-muted-foreground mt-1">{alert.headline ?? '-'}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -204,9 +273,9 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 md:grid-cols-2 items-stretch">
                 {/* Detail fields */}
-                <Card>
+                <Card className="flex flex-col">
                     <CardHeader><CardTitle className="text-base">Informasi Alert</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
                         {fields.map(({ label, value }) => (
@@ -229,16 +298,17 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
                 </Card>
 
                 {/* Map */}
-                <Card>
+                <Card className="flex flex-col">
                     <CardHeader><CardTitle className="text-base">Peta Wilayah Terdampak</CardTitle></CardHeader>
-                    <CardContent>
-                        <MiniMap areas={areas} color={mapColor} />
+                    <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
+                        <MiniMap areas={areas} color={mapColor} className="flex-1 min-h-0" />
                         {areas.length > 0 && (
-                            <div className="mt-3 space-y-1">
+                            <div className="mt-3 pt-3 border-t space-y-1.5">
+                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Wilayah Terdampak</p>
                                 {areas.map((a, i) => (
-                                    <div key={i} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: mapColor }} />
-                                        {a.name}
+                                    <div key={i} className="text-xs flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-sm shrink-0 opacity-70" style={{ backgroundColor: mapColor }} />
+                                        <span className="font-medium">{a.name}</span>
                                     </div>
                                 ))}
                             </div>
@@ -253,7 +323,7 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
                     <CardHeader><CardTitle className="text-base">Deskripsi</CardTitle></CardHeader>
                     <CardContent>
                         <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
-                            {alert.description}
+                            {highlightAreas(alert.description, areas.map(a => a.name))}
                         </p>
                     </CardContent>
                 </Card>
@@ -272,7 +342,7 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
                                     <div>
                                         <span className="font-medium">Channel #{d.channel_id}</span>
                                         {d.error_message && (
-                                            <p className="text-xs text-red-500 mt-0.5">{d.error_message}</p>
+                                            <p className="text-xs text-red-500 mt-0.5">{explainDeliveryError(d.error_message)}</p>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-3 text-right">

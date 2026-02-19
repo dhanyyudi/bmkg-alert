@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 import structlog
@@ -181,8 +181,8 @@ async def get_trial_status(chat_id: str):
 
 
 @router.delete("/{trial_id}")
-async def cancel_trial(trial_id: int):
-    """Cancel an active trial subscription."""
+async def cancel_trial(trial_id: int, chat_id: str = Query(..., description="Chat ID pemilik trial")):
+    """Cancel an active trial subscription. Requires the owner's chat_id for verification."""
     db = get_database()
 
     row = await db.fetch_one(
@@ -191,6 +191,9 @@ async def cancel_trial(trial_id: int):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Trial tidak ditemukan")
+
+    if row["telegram_chat_id"] != chat_id.strip():
+        raise HTTPException(status_code=403, detail="Tidak diizinkan menghentikan trial milik pengguna lain")
 
     # Expire the trial immediately
     await db.execute(
