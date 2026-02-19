@@ -5,7 +5,8 @@ __pycache__
 .env.*
 venv/
 .venv/
-data/
+# Exclude runtime data volume (SQLite DB) but keep app/data/ (static files like wilayah.csv)
+/data/
 *.db
 *.db-shm
 *.db-wal

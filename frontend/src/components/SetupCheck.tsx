@@ -9,7 +9,10 @@ export const SetupCheck: React.FC = () => {
     useEffect(() => {
         api.get<{ data: Record<string, string> }>('/config')
             .then(res => {
-                if (res.data?.setup_completed !== 'true') {
+                const cfg = res.data;
+                // In demo mode the admin already completed setup — skip redirect for all visitors
+                const isDemoMode = cfg?.demo_mode === 'true';
+                if (!isDemoMode && cfg?.setup_completed !== 'true') {
                     window.location.href = '/setup';
                 }
             })

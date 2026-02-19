@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Check, ChevronRight, Globe, MapPin, Bell, Settings, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -119,18 +118,12 @@ export const SetupWizard: React.FC = () => {
                         <div className="space-y-4">
                             <h3 className="text-lg font-medium">Welcome to BMKG Alert</h3>
                             <p className="text-slate-600 dark:text-slate-400">
-                                This wizard will help you configure your weather monitoring system. 
+                                This wizard will help you configure your weather monitoring system.
                                 Only a few steps are required to get started.
                             </p>
-                            
-                            <div className="grid gap-2">
-                                <label className="text-sm font-medium">BMKG API URL</label>
-                                <Input 
-                                    value={config.bmkg_api_url} 
-                                    onChange={e => setConfig({...config, bmkg_api_url: e.target.value})} 
-                                />
-                                <p className="text-xs text-muted-foreground">Default: https://bmkg-restapi.vercel.app</p>
-                            </div>
+                            <p className="text-slate-500 dark:text-slate-500 text-sm">
+                                Konfigurasi server (seperti BMKG API URL) diatur melalui environment variable di server dan tidak dapat diubah dari sini.
+                            </p>
                         </div>
                     )}
 
