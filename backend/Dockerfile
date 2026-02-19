@@ -25,10 +25,11 @@ RUN pip install --no-cache /wheels/* && rm -rf /wheels
 
 COPY . .
 
-# Create data directory and non-root user
-RUN mkdir -p /app/data \
-    && addgroup --system app && adduser --system --group app \
-    && chown -R app:app /app/data
+# Create non-root user with UID 1000 (matches typical host user UID)
+RUN groupadd -g 1000 app \
+    && useradd -u 1000 -g app -s /bin/sh -d /app --no-create-home app \
+    && mkdir -p /app/data \
+    && chown -R app:app /app
 
 USER app
 
