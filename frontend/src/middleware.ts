@@ -10,10 +10,16 @@ import type { MiddlewareHandler } from 'astro';
 
 const API_BACKEND = import.meta.env.API_URL || process.env.API_URL || 'http://localhost:8000';
 
+const BACKEND_PATHS = ['/api/', '/docs', '/redoc', '/openapi.json'];
+
 export const onRequest: MiddlewareHandler = async (context, next) => {
     const url = new URL(context.request.url);
 
-    if (!url.pathname.startsWith('/api/')) {
+    const isBackendPath = BACKEND_PATHS.some(p =>
+        p.endsWith('/') ? url.pathname.startsWith(p) : url.pathname === p
+    );
+
+    if (!isBackendPath) {
         return next();
     }
 
