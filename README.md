@@ -185,8 +185,14 @@ Key endpoints:
 | Frontend | Astro, React, Tailwind CSS, MapLibre GL |
 | Backend | Python, FastAPI, aiosqlite (SQLite) |
 | Notifications | Telegram Bot API, Discord/Slack webhooks, SMTP |
-| Data source | BMKG Nowcast API, BMKG Prakiraan Cuaca |
+| Data source | [bmkg-restapi.vercel.app](https://bmkg-restapi.vercel.app) — BMKG Nowcast & Prakiraan Cuaca |
 | Deployment | Docker, GitHub Actions, GHCR |
+
+---
+
+## Attribution
+
+Weather data is sourced from **[bmkg-restapi.vercel.app](https://bmkg-restapi.vercel.app)**, an unofficial REST API wrapper for [BMKG](https://www.bmkg.go.id/) (Badan Meteorologi, Klimatologi, dan Geofisika) open data.
 
 ---
 
