@@ -1,19 +1,31 @@
 """Main FastAPI application."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.config import settings
 from app.cache import cache
-from app.dependencies import limiter, set_engine, set_bmkg_client
+from app.config import settings
+from app.core.auth import verify_admin
+from app.dependencies import limiter, set_bmkg_client, set_engine
 from app.http_client import close_http_client
+from app.routes import (
+    activity as activity_router,
+    alerts as alerts_router,
+    auth as auth_router,
+    channels as channels_router,
+    config as config_router,
+    engine as engine_router,
+    locations as locations_router,
+    trial as trial_router,
+)
 from app.routers import earthquake, health, nowcast, weather, wilayah
 
 # Configure logging
@@ -142,17 +154,6 @@ app.include_router(weather.router, prefix="/api")
 app.include_router(wilayah.router, prefix="/api")
 
 # ── Alert management routes (routes/) ────────────────────────────────────────
-from app.routes import (
-    alerts as alerts_router,
-    auth as auth_router,
-    locations as locations_router,
-    channels as channels_router,
-    config as config_router,
-    activity as activity_router,
-    engine as engine_router,
-    trial as trial_router,
-)
-
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(alerts_router.router, prefix="/api/v1")
 app.include_router(locations_router.router, prefix="/api/v1")
@@ -162,11 +163,8 @@ app.include_router(activity_router.router, prefix="/api/v1")
 app.include_router(engine_router.router, prefix="/api/v1")
 app.include_router(trial_router.router, prefix="/api/v1")
 
+
 # ── Admin endpoint ────────────────────────────────────────────────────────────
-from fastapi import Depends
-from app.core.auth import verify_admin
-
-
 @app.get("/admin/status", dependencies=[Depends(verify_admin)], tags=["admin"])
 async def admin_status():
     """Protected admin status endpoint."""
@@ -174,7 +172,6 @@ async def admin_status():
 
 
 # Static landing page: only mount if the directory exists (not available in Docker).
-import os
 if os.path.isdir("landing"):
     app.mount("/static", StaticFiles(directory="landing"), name="static")
     app.mount("/", StaticFiles(directory="landing", html=True), name="landing")

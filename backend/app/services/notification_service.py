@@ -4,7 +4,6 @@ from app.services.notifications.base import NotificationProvider, NotificationMe
 from app.services.notifications.discord import DiscordProvider
 from app.services.notifications.slack import SlackProvider
 from app.services.notifications.webhook import WebhookProvider
-from app.services.notifications.webhook import WebhookProvider
 from app.services.notifications.email import EmailProvider
 from app.services.notifications.telegram import TelegramProvider
 from app.models.nowcast import Warning
