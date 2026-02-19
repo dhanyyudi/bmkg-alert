@@ -1,0 +1,1880 @@
+<!doctype html>
+<html
+  lang="en"
+  x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }"
+  x-bind:class="{ 'dark': darkMode }"
+>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BMKG API - Indonesian Weather & Earthquake Data</title>
+    <meta
+      name="description"
+      content="Free REST API for Indonesian weather forecasts, earthquake data, and region lookup from BMKG"
+    />
+
+    <!-- Tailwind CSS (Compiled) -->
+    <link rel="stylesheet" href="/static/output.css" />
+
+    <!-- Alpine.js -->
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+
+    <!-- Prism.js for syntax highlighting -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Turf.js for geospatial polygon operations -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.1.0/turf.min.js"></script>
+    <!-- MapLibre GL JS -->
+    <script src="https://unpkg.com/maplibre-gl@3.6.0/dist/maplibre-gl.js"></script>
+    <link
+      href="https://unpkg.com/maplibre-gl@3.6.0/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+
+    <style>
+      .maplibregl-map {
+        font-family: inherit;
+        min-height: 288px;
+      }
+      .maplibregl-popup-content {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+        padding: 12px;
+      }
+      .dark .maplibregl-popup-content {
+        background: #1f2937;
+        border-color: #374151;
+        color: white;
+      }
+      .maplibregl-popup-close-button {
+        color: #6b7280;
+        font-size: 16px;
+        padding: 4px 8px;
+      }
+      .maplibregl-popup-close-button:hover {
+        color: #111827;
+      }
+      .earthquake-marker {
+        animation: pulse-red 2s infinite;
+      }
+      @keyframes pulse-red {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+        }
+      }
+    </style>
+
+    <style>
+      [x-cloak] {
+        display: none !important;
+      }
+      .gradient-text {
+        background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .gradient-bg {
+        background: linear-gradient(135deg, #eff6ff 0%, #f3e8ff 100%);
+      }
+      .dark .gradient-bg {
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      }
+      .code-block {
+        font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300"
+  >
+    <!-- Navigation -->
+    <nav
+      class="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800"
+    >
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center gap-2">
+            <i data-lucide="activity" class="w-6 h-6 text-primary-600"></i>
+            <span class="font-bold text-xl">BMKG API</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <a
+              href="/docs"
+              class="hidden sm:block text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >Docs</a
+            >
+            <a
+              href="self-host.html"
+              class="hidden sm:block text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >Self-Host</a
+            >
+            <a
+              href="https://github.com/dhanyyudi/bmkg-api"
+              class="hidden sm:block text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >GitHub</a
+            >
+            <button
+              @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)"
+              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <i x-show="!darkMode" data-lucide="moon" class="w-5 h-5"></i>
+              <i x-show="darkMode" data-lucide="sun" class="w-5 h-5"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="gradient-bg py-20 sm:py-32">
+      <div class="max-w-4xl mx-auto px-4 text-center">
+        <div
+          class="inline-flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium mb-6"
+        >
+          <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+          <span id="api-status">Checking API...</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
+          <span class="gradient-text">BMKG API</span>
+        </h1>
+        <p
+          class="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto"
+        >
+          Free REST API featuring
+          <strong class="text-amber-600 dark:text-amber-400"
+            >interactive weather warning maps</strong
+          >
+          from BMKG nowcast. Also includes earthquake data, forecasts & region
+          lookup.
+        </p>
+
+        <!-- Quick Code Example -->
+        <div
+          class="bg-gray-900 rounded-xl p-4 sm:p-6 max-w-2xl mx-auto mb-8 text-left shadow-2xl"
+        >
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex gap-2">
+              <div class="w-3 h-3 rounded-full bg-red-500"></div>
+              <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+            <button
+              onclick="copyCode('hero-code')"
+              class="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+            >
+              <i data-lucide="copy" class="w-4 h-4"></i>
+              <span id="copy-hero">Copy</span>
+            </button>
+          </div>
+          <pre
+            class="overflow-x-auto"
+          ><code id="hero-code" class="language-bash text-sm">curl https://bmkg-restapi.vercel.app/v1/nowcast</code></pre>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <a
+            href="/docs"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+          >
+            <i data-lucide="book-open" class="w-5 h-5"></i>
+            API Documentation
+          </a>
+          <a
+            href="#explorer"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <i data-lucide="play" class="w-5 h-5"></i>
+            Try It Now
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Cards -->
+    <section class="py-16 sm:py-24 bg-white dark:bg-gray-900">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center mb-12">API Features</h2>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Earthquake -->
+          <div
+            class="p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-red-300 dark:hover:border-red-700 hover:shadow-lg transition-all group"
+          >
+            <div
+              class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
+            >
+              <i data-lucide="activity" class="w-6 h-6 text-red-600"></i>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Earthquake</h3>
+            <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
+              Real-time seismic data from BMKG's nationwide sensor network.
+            </p>
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/earthquake/latest</code
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/earthquake/recent</code
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/earthquake/nearby</code
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Weather -->
+          <div
+            class="p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-lg transition-all group"
+          >
+            <div
+              class="w-12 h-12 bg-sky-100 dark:bg-sky-900/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
+            >
+              <i data-lucide="cloud-sun" class="w-6 h-6 text-sky-600"></i>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Weather</h3>
+            <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
+              3-day weather forecasts for any location in Indonesia.
+            </p>
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/weather/{adm4}</code
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/weather/{adm4}/current</code
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Nowcast -->
+          <div
+            class="p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-lg transition-all group"
+          >
+            <div
+              class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
+            >
+              <i
+                data-lucide="cloud-lightning"
+                class="w-6 h-6 text-amber-600"
+              ></i>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Nowcast</h3>
+            <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
+              Real-time weather warnings with map visualization & infographic.
+            </p>
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400">/nowcast</code>
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/nowcast/{alert_code}</code
+                >
+              </div>
+            </div>
+            <a
+              href="#explorer"
+              @click.prevent="goToNowcastExplorer()"
+              class="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 mt-3 font-medium cursor-pointer"
+            >
+              Try in Explorer <i data-lucide="arrow-right" class="w-3 h-3"></i>
+            </a>
+          </div>
+
+          <!-- Wilayah -->
+          <div
+            class="p-6 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-lg transition-all group"
+          >
+            <div
+              class="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"
+            >
+              <i data-lucide="map-pin" class="w-6 h-6 text-emerald-600"></i>
+            </div>
+            <h3 class="text-lg font-semibold mb-2">Wilayah</h3>
+            <p class="text-gray-600 dark:text-gray-400 text-sm mb-4">
+              Indonesian region lookup: provinces, districts, villages.
+            </p>
+            <div class="space-y-2 text-xs">
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/wilayah/provinces</code
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 rounded"
+                  >GET</span
+                >
+                <code class="text-gray-600 dark:text-gray-400"
+                  >/wilayah/search</code
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Explorer with Integrated Visualizer -->
+    <section
+      id="explorer"
+      class="py-16 sm:py-24 bg-gray-50 dark:bg-gray-800/50"
+      x-data="apiExplorer()"
+      x-init="fetchAlertCodes()"
+    >
+      <div class="max-w-6xl mx-auto px-4">
+        <div class="text-center mb-8">
+          <h2 class="text-3xl font-bold mb-4">API Explorer</h2>
+          <p class="text-gray-600 dark:text-gray-400">
+            Try the API with live visualization for geo data
+          </p>
+        </div>
+
+        <!-- Main Explorer Card -->
+        <div
+          class="bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 overflow-hidden"
+        >
+          <!-- Endpoint Selector -->
+          <div class="border-b border-gray-200 dark:border-gray-800 p-4">
+            <label class="block text-sm font-medium mb-2"
+              >Select Endpoint</label
+            >
+            <select
+              x-model="selectedEndpoint"
+              @change="onEndpointChange()"
+              class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <optgroup label="🌍 Earthquake">
+                <option value="earthquake-latest">
+                  GET /v1/earthquake/latest
+                </option>
+                <option value="earthquake-recent">
+                  GET /v1/earthquake/recent
+                </option>
+                <option value="earthquake-felt">GET /v1/earthquake/felt</option>
+              </optgroup>
+              <optgroup label="⛈️ Weather Warnings (Nowcast)">
+                <option value="nowcast">
+                  GET /v1/nowcast - List Active Alerts
+                </option>
+                <option value="nowcast-detail">
+                  GET /v1/nowcast/{alert_code} - Alert Detail
+                </option>
+              </optgroup>
+              <optgroup label="🌤️ Weather Forecast">
+                <option value="weather">GET /v1/weather/{adm4_code}</option>
+                <option value="weather-current">
+                  GET /v1/weather/{adm4_code}/current
+                </option>
+              </optgroup>
+              <optgroup label="📍 Region Lookup">
+                <option value="wilayah-provinces">
+                  GET /v1/wilayah/provinces
+                </option>
+                <option value="wilayah-search">GET /v1/wilayah/search</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- Parameters -->
+          <div
+            class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30"
+            x-show="hasParams"
+          >
+            <template
+              x-if="selectedEndpoint === 'weather' || selectedEndpoint === 'weather-current'"
+            >
+              <div class="flex items-end gap-3">
+                <div class="flex-1">
+                  <label class="block text-sm font-medium mb-1"
+                    >ADM4 Code</label
+                  >
+                  <input
+                    x-model="params.adm4"
+                    type="text"
+                    placeholder="33.26.16.2005"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                  />
+                </div>
+                <span class="text-xs text-gray-500 pb-2"
+                  >Example: 33.26.16.2005</span
+                >
+              </div>
+            </template>
+
+            <!-- Alert Code Dropdown with Fetch -->
+            <template x-if="selectedEndpoint === 'nowcast-detail'">
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <label class="block text-sm font-medium">Alert Code</label>
+                  <button
+                    @click="fetchAlertCodes()"
+                    :disabled="loadingAlerts"
+                    class="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                  >
+                    <i
+                      x-show="!loadingAlerts"
+                      data-lucide="refresh-cw"
+                      class="w-3 h-3"
+                    ></i>
+                    <i
+                      x-show="loadingAlerts"
+                      data-lucide="loader-2"
+                      class="w-3 h-3 animate-spin"
+                    ></i>
+                    <span x-text="loadingAlerts ? 'Loading...' : 'Refresh'"
+                      >Refresh</span
+                    >
+                  </button>
+                </div>
+
+                <!-- Alert Dropdown -->
+                <select
+                  x-model="params.alertCode"
+                  class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                >
+                  <option value="">-- Select Active Alert --</option>
+                  <template x-for="alert in alertCodes" :key="alert.code">
+                    <option
+                      :value="alert.code"
+                      x-text="alert.code + ' - ' + alert.province"
+                    ></option>
+                  </template>
+                </select>
+
+                <!-- Alert Info Preview -->
+                <div
+                  x-show="selectedAlertInfo"
+                  x-transition
+                  class="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"
+                >
+                  <p
+                    x-html="highlightAreas(selectedAlertInfo?.description)"
+                    class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed"
+                  ></p>
+                  <p
+                    x-text="'Published: ' + formatDate(selectedAlertInfo?.published_at)"
+                    class="text-xs text-gray-500 mt-1"
+                  ></p>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="selectedEndpoint === 'wilayah-search'">
+              <div class="flex items-end gap-3">
+                <div class="flex-1">
+                  <label class="block text-sm font-medium mb-1"
+                    >Search Query</label
+                  >
+                  <input
+                    x-model="params.query"
+                    type="text"
+                    placeholder="pekalongan"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                  />
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Execute Bar -->
+          <div
+            class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50"
+          >
+            <div class="flex items-center gap-3">
+              <code
+                x-text="buildUrl()"
+                class="flex-1 text-xs sm:text-sm font-mono bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded overflow-x-auto whitespace-nowrap"
+              ></code>
+              <button
+                @click="execute()"
+                :disabled="loading"
+                class="px-4 sm:px-6 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2 text-sm whitespace-nowrap"
+              >
+                <i x-show="!loading" data-lucide="play" class="w-4 h-4"></i>
+                <i
+                  x-show="loading"
+                  data-lucide="loader-2"
+                  class="w-4 h-4 animate-spin"
+                ></i>
+                <span x-text="loading ? 'Loading...' : 'Execute'">Execute</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Response Section with Cards Layout -->
+          <template x-if="response">
+            <div class="p-4 space-y-4">
+              <!-- Response Header -->
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <span class="text-sm font-medium">Response</span>
+                  <span x-text="statusCode" :class="statusClass"></span>
+                  <span
+                    x-show="canVisualize"
+                    class="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full"
+                  >
+                    📍 Has Geo Data
+                  </span>
+                </div>
+                <button
+                  x-show="canVisualize"
+                  @click="showMap = !showMap"
+                  class="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg flex items-center gap-1.5 transition-colors"
+                >
+                  <i data-lucide="map" class="w-3.5 h-3.5"></i>
+                  <span
+                    x-text="showMap ? 'Hide Visualization' : 'Show Visualization'"
+                    >Show Visualization</span
+                  >
+                </button>
+              </div>
+
+              <!-- Compact JSON Response Card -->
+              <div
+                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                <div
+                  class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                >
+                  <span
+                    class="text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >JSON Response</span
+                  >
+                  <button
+                    @click="copyResponse()"
+                    class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1"
+                  >
+                    <i data-lucide="copy" class="w-3 h-3"></i>
+                    <span x-text="copied ? 'Copied!' : 'Copy'">Copy</span>
+                  </button>
+                </div>
+                <pre
+                  class="bg-gray-900 text-gray-100 p-3 overflow-auto text-xs leading-relaxed"
+                  style="max-height: 200px"
+                ><code x-text="formattedResponse"></code></pre>
+              </div>
+
+              <!-- Visualization Cards Grid -->
+              <div
+                x-show="showMap && canVisualize"
+                x-effect="if (showMap && canVisualize) { $nextTick(() => { setTimeout(() => initMap(), 200); }); }"
+                x-transition
+                class="grid lg:grid-cols-2 gap-4"
+              >
+                <!-- Info Card (Nowcast/EQ Info) -->
+                <template x-if="vizInfo">
+                  <div
+                    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+                  >
+                    <!-- Header with Icon and Severity -->
+                    <div class="p-4">
+                      <div class="flex items-start gap-3">
+                        <!-- Warning Icon -->
+                        <div
+                          x-show="vizType === 'nowcast'"
+                          class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                          :class="{
+                                                     'bg-red-100 dark:bg-red-900/30 text-red-600': (vizInfo.severity || '').toLowerCase().includes('extreme'),
+                                                     'bg-orange-100 dark:bg-orange-900/30 text-orange-600': (vizInfo.severity || '').toLowerCase().includes('severe'),
+                                                     'bg-amber-100 dark:bg-amber-900/30 text-amber-600': (vizInfo.severity || 'moderate').toLowerCase().includes('moderate'),
+                                                     'bg-blue-100 dark:bg-blue-900/30 text-blue-600': !(vizInfo.severity || '').toLowerCase().includes('extreme') && !(vizInfo.severity || '').toLowerCase().includes('severe') && !(vizInfo.severity || '').toLowerCase().includes('moderate')
+                                                 }"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path
+                              d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
+                            />
+                            <path d="M12 9v4" />
+                            <path d="M12 17h.01" />
+                          </svg>
+                        </div>
+
+                        <!-- Title Section -->
+                        <div class="flex-1 min-w-0">
+                          <div class="flex items-start justify-between gap-2">
+                            <div>
+                              <h3
+                                x-text="vizInfo.event"
+                                class="font-semibold text-base leading-tight"
+                              ></h3>
+                              <p
+                                x-show="vizInfo.headline"
+                                x-text="vizInfo.headline"
+                                class="text-xs text-gray-500 dark:text-gray-400 mt-0.5"
+                              ></p>
+                            </div>
+                            <span
+                              x-show="vizInfo.severity"
+                              :class="severityClass(vizInfo.severity)"
+                              class="text-xs px-2 py-0.5 rounded font-medium flex-shrink-0"
+                              x-text="vizInfo.severity"
+                            >
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Description -->
+                      <p
+                        x-show="vizInfo.description"
+                        x-html="highlightAreas(vizInfo.description)"
+                        class="text-xs text-gray-500 dark:text-gray-400 mt-3 leading-relaxed"
+                      ></p>
+
+                      <!-- Metadata Grid -->
+                      <div
+                        class="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700"
+                      >
+                        <!-- Nowcast: Urgency & Severity -->
+                        <template x-if="vizType === 'nowcast'">
+                          <div class="col-span-2 grid grid-cols-2 gap-3">
+                            <div>
+                              <span class="text-xs text-gray-400">Urgency</span>
+                              <p
+                                x-text="vizInfo.urgency || 'Immediate'"
+                                class="text-xs font-medium text-gray-700 dark:text-gray-300"
+                              ></p>
+                            </div>
+                            <div>
+                              <span class="text-xs text-gray-400"
+                                >Certainty</span
+                              >
+                              <p
+                                x-text="vizInfo.certainty || 'Observed'"
+                                class="text-xs font-medium text-gray-700 dark:text-gray-300"
+                              ></p>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Effective -->
+                        <div x-show="vizInfo.effective">
+                          <span class="text-xs text-gray-400">Effective</span>
+                          <p
+                            x-text="formatDate(vizInfo.effective)"
+                            class="text-xs font-medium text-gray-700 dark:text-gray-300"
+                          ></p>
+                        </div>
+
+                        <!-- Expires -->
+                        <div x-show="vizInfo.expires">
+                          <span class="text-xs text-gray-400">Expires</span>
+                          <p
+                            x-text="formatDate(vizInfo.expires)"
+                            class="text-xs font-medium text-gray-700 dark:text-gray-300"
+                          ></p>
+                        </div>
+
+                        <!-- EQ Specific -->
+                        <div x-show="vizInfo.datetime">
+                          <span class="text-xs text-gray-400">Time</span>
+                          <p
+                            x-text="formatDate(vizInfo.datetime)"
+                            class="text-xs font-medium text-gray-700 dark:text-gray-300"
+                          ></p>
+                        </div>
+                        <div x-show="vizInfo.depth_km !== undefined">
+                          <span class="text-xs text-gray-400">Depth</span>
+                          <p
+                            x-text="vizInfo.depth_km + ' km'"
+                            class="text-xs font-medium text-gray-700 dark:text-gray-300"
+                          ></p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Map Card -->
+                <div
+                  class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden lg:row-span-2 flex flex-col"
+                >
+                  <div
+                    class="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-2"
+                  >
+                    <i data-lucide="map" class="w-4 h-4 text-amber-500"></i>
+                    <span
+                      class="text-sm font-medium"
+                      x-text="vizType === 'earthquake' ? 'Epicenter Location' : 'Warning Areas'"
+                      >Map</span
+                    >
+                  </div>
+                  <div id="viz-map" class="flex-1 min-h-72 w-full"></div>
+                </div>
+
+                <!-- Image Card (Infographic/Shakemap) -->
+                <div
+                  x-show="vizImageUrl"
+                  class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+                >
+                  <div
+                    class="px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-2"
+                  >
+                    <i data-lucide="image" class="w-4 h-4 text-purple-500"></i>
+                    <span class="text-sm font-medium" x-text="vizImageTitle"
+                      >Image</span
+                    >
+                  </div>
+                  <div class="p-3">
+                    <img
+                      :src="vizImageUrl"
+                      class="w-full rounded border border-gray-200 dark:border-gray-700"
+                      @error="vizImageUrl = null"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section class="py-16 sm:py-24 bg-gray-50 dark:bg-gray-800/50">
+      <div class="max-w-4xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center mb-12">Quick Start</h2>
+
+        <div class="grid sm:grid-cols-3 gap-8 mb-12">
+          <div class="text-center">
+            <div
+              class="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
+              <span class="text-xl font-bold text-primary-600">1</span>
+            </div>
+            <h3 class="font-semibold mb-2">Pick Endpoint</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Choose from earthquake, weather, nowcast, or wilayah
+            </p>
+          </div>
+          <div class="text-center">
+            <div
+              class="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
+              <span class="text-xl font-bold text-primary-600">2</span>
+            </div>
+            <h3 class="font-semibold mb-2">Make Request</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Simple HTTP GET request, no authentication required
+            </p>
+          </div>
+          <div class="text-center">
+            <div
+              class="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
+              <span class="text-xl font-bold text-primary-600">3</span>
+            </div>
+            <h3 class="font-semibold mb-2">Get JSON</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Clean, structured JSON response with attribution
+            </p>
+          </div>
+        </div>
+
+        <!-- Code Examples -->
+        <div
+          class="bg-gray-900 rounded-xl overflow-hidden"
+          x-data="{ activeTab: 'curl' }"
+        >
+          <div class="flex flex-wrap border-b border-gray-800">
+            <button
+              @click="activeTab = 'curl'"
+              :class="activeTab === 'curl' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              cURL
+            </button>
+            <button
+              @click="activeTab = 'js'"
+              :class="activeTab === 'js' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              JavaScript
+            </button>
+            <button
+              @click="activeTab = 'python'"
+              :class="activeTab === 'python' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              Python
+            </button>
+            <button
+              @click="activeTab = 'go'"
+              :class="activeTab === 'go' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              Go
+            </button>
+            <button
+              @click="activeTab = 'php'"
+              :class="activeTab === 'php' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              PHP
+            </button>
+            <button
+              @click="activeTab = 'ruby'"
+              :class="activeTab === 'ruby' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              Ruby
+            </button>
+            <button
+              @click="activeTab = 'dart'"
+              :class="activeTab === 'dart' ? 'bg-gray-800 text-white' : 'text-gray-400'"
+              class="px-4 py-3 text-sm font-medium transition-colors"
+            >
+              Dart
+            </button>
+          </div>
+          <div class="p-4">
+            <pre
+              x-show="activeTab === 'curl'"
+              class="language-bash"
+            ><code>curl https://bmkg-restapi.vercel.app/v1/earthquake/latest</code></pre>
+            <pre
+              x-show="activeTab === 'js'"
+              class="language-javascript"
+            ><code>fetch('https://bmkg-restapi.vercel.app/v1/earthquake/latest')
+  .then(r => r.json())
+  .then(data => console.log(data));</code></pre>
+            <pre
+              x-show="activeTab === 'python'"
+              class="language-python"
+            ><code>import requests
+
+response = requests.get(
+    'https://bmkg-restapi.vercel.app/v1/earthquake/latest'
+)
+data = response.json()
+print(data)</code></pre>
+            <pre
+              x-show="activeTab === 'go'"
+              class="language-go"
+            ><code>package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "net/http"
+)
+
+func main() {
+    resp, err := http.Get(
+        "https://bmkg-restapi.vercel.app/v1/earthquake/latest",
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    var data map[string]interface{}
+    json.NewDecoder(resp.Body).Decode(&amp;data)
+    fmt.Println(data)
+}</code></pre>
+            <pre
+              x-show="activeTab === 'php'"
+              class="language-php"
+            ><code>$response = file_get_contents(
+    'https://bmkg-restapi.vercel.app/v1/earthquake/latest'
+);
+$data = json_decode($response, true);
+print_r($data);</code></pre>
+            <pre
+              x-show="activeTab === 'ruby'"
+              class="language-ruby"
+            ><code>require 'net/http'
+require 'json'
+
+uri = URI('https://bmkg-restapi.vercel.app/v1/earthquake/latest')
+response = Net::HTTP.get(uri)
+data = JSON.parse(response)
+puts data</code></pre>
+            <pre
+              x-show="activeTab === 'dart'"
+              class="language-dart"
+            ><code>import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+void main() async {
+  final response = await http.get(
+    Uri.parse('https://bmkg-restapi.vercel.app/v1/earthquake/latest'),
+  );
+  final data = jsonDecode(response.body);
+  print(data);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Polygon Guide -->
+    <section class="py-16 sm:py-24">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center mb-4">
+          Working with Warning Polygons
+        </h2>
+        <p
+          class="text-center text-gray-600 dark:text-gray-400 mb-12 max-w-2xl mx-auto"
+        >
+          The nowcast warning endpoint returns polygon coordinates for affected
+          areas. Here's how to extract and render them on a map using
+          <a
+            href="https://turfjs.org/"
+            class="text-primary-600 hover:underline"
+            target="_blank"
+            >Turf.js</a
+          >.
+        </p>
+
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- Left column: Data Structure + Split Rings -->
+          <div class="space-y-6">
+            <!-- Step 1 -->
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <span
+                  class="w-6 h-6 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center text-xs font-bold text-primary-600"
+                  >1</span
+                >
+                <h3 class="font-semibold">Data Structure</h3>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Each area has a flat
+                <code class="text-primary-600">[lat, lon]</code> array with
+                multiple closed rings concatenated together. Swap to
+                <code class="text-primary-600">[lon, lat]</code> for map
+                libraries.
+              </p>
+              <div class="bg-gray-900 rounded-lg overflow-hidden">
+                <div
+                  class="px-3 py-1.5 border-b border-gray-800 text-xs text-gray-500"
+                >
+                  Response
+                </div>
+                <pre
+                  class="p-3 text-xs overflow-x-auto"
+                ><code class="language-json">{ "areas": [{ "polygon": [
+    [-7.434, 110.216],  // Ring 1 start
+    [-7.444, 110.215], ...
+    [-7.434, 110.216],  // Ring 1 close (matches start)
+    [-7.565, 110.72],   // Ring 2 start (50km+ jump)
+    ...
+    [-7.565, 110.72]    // Ring 2 close
+]}]}</code></pre>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <span
+                  class="w-6 h-6 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center text-xs font-bold text-primary-600"
+                  >2</span
+                >
+                <h3 class="font-semibold">Split into Rings</h3>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Detect ring boundaries with
+                <strong>coordinate matching</strong> (point equals start) and
+                <strong>distance jump</strong> (&gt;10km gap = new polygon).
+              </p>
+              <div class="bg-gray-900 rounded-lg overflow-hidden">
+                <div
+                  class="px-3 py-1.5 border-b border-gray-800 text-xs text-gray-500"
+                >
+                  splitRings.js
+                </div>
+                <pre
+                  class="p-3 text-xs overflow-x-auto"
+                ><code class="language-javascript">function splitRings(coords) {
+  const rings = [], eps = 0.0001;
+  let start = coords[0];
+  let ring = [[start[1], start[0]]];
+
+  for (let i = 1; i &lt; coords.length; i++) {
+    const c = coords[i], pt = [c[1], c[0]];
+    // Split on &gt;10km gap (new polygon group)
+    if (ring.length &gt;= 4) {
+      const prev = ring[ring.length - 1];
+      if (turf.distance(prev, pt,
+          { units: 'kilometers' }) &gt; 10) {
+        ring.push(ring[0]);
+        rings.push(ring);
+        start = c; ring = [pt]; continue;
+      }
+    }
+    ring.push(pt);
+    // Split on coordinate match (ring closed)
+    if (Math.abs(c[0]-start[0]) &lt; eps
+     &amp;&amp; Math.abs(c[1]-start[1]) &lt; eps
+     &amp;&amp; ring.length &gt;= 4) {
+      rings.push(ring); ring = [];
+      if (i+1 &lt; coords.length) {
+        start = coords[i+1];
+        ring = [[start[1], start[0]]]; i++;
+      }
+    }
+  }
+  if (ring.length &gt;= 4) {
+    ring.push(ring[0]); rings.push(ring);
+  }
+  return rings;
+}</code></pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right column: Filter & Render + Tips -->
+          <div class="space-y-6">
+            <!-- Step 3 -->
+            <div>
+              <div class="flex items-center gap-2 mb-3">
+                <span
+                  class="w-6 h-6 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center text-xs font-bold text-primary-600"
+                  >3</span
+                >
+                <h3 class="font-semibold">Filter Artifacts &amp; Render</h3>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Reject strip artifacts by max edge length &mdash; real
+                boundaries have short edges (&lt;5km), artifacts have long
+                diagonal edges (50km+).
+              </p>
+              <div class="bg-gray-900 rounded-lg overflow-hidden">
+                <div
+                  class="px-3 py-1.5 border-b border-gray-800 text-xs text-gray-500"
+                >
+                  render.js (with Turf.js + MapLibre GL)
+                </div>
+                <pre
+                  class="p-3 text-xs overflow-x-auto"
+                ><code class="language-javascript">const rings = splitRings(area.polygon);
+
+rings.forEach((ring, i) =&gt; {
+  try {
+    const poly = turf.polygon([ring]);
+    if (turf.area(poly) &lt;= 0) return;
+
+    // Reject artifacts: max edge &gt; 20km
+    let maxEdge = 0;
+    for (let j = 0; j &lt; ring.length - 1; j++) {
+      const d = turf.distance(ring[j],
+        ring[j+1], { units: 'kilometers' });
+      if (d &gt; maxEdge) maxEdge = d;
+    }
+    if (maxEdge &gt; 20) return;
+
+    // Add to map
+    map.addSource(`area-${i}`, {
+      type: 'geojson', data: poly
+    });
+    map.addLayer({
+      id: `area-${i}-fill`,
+      type: 'fill',
+      source: `area-${i}`,
+      paint: {
+        'fill-color': '#f59e0b',
+        'fill-opacity': 0.35
+      }
+    });
+  } catch (e) { /* skip invalid */ }
+});</code></pre>
+              </div>
+            </div>
+
+            <!-- Tips -->
+            <div class="space-y-3">
+              <div
+                class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4"
+              >
+                <div class="flex gap-2.5">
+                  <i
+                    data-lucide="lightbulb"
+                    class="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5"
+                  ></i>
+                  <p class="text-sm text-blue-800 dark:text-blue-300">
+                    <strong>Coordinate order:</strong> API returns
+                    <code>[lat, lon]</code>, map libraries expect
+                    <code>[lon, lat]</code>. Always swap before rendering.
+                  </p>
+                </div>
+              </div>
+              <div
+                class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4"
+              >
+                <div class="flex gap-2.5">
+                  <i
+                    data-lucide="triangle-alert"
+                    class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"
+                  ></i>
+                  <p class="text-sm text-amber-800 dark:text-amber-300">
+                    <strong>Why filter?</strong> The flat array format can
+                    produce thin strip artifacts connecting distant polygons.
+                    The 20km edge + 10km gap thresholds eliminate these while
+                    preserving real boundaries.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Demo Notice -->
+    <section class="py-16 sm:py-24 bg-gray-50 dark:bg-gray-800/50">
+      <div class="max-w-3xl mx-auto px-4 text-center">
+        <div
+          class="inline-flex items-center justify-center w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full mb-6"
+        >
+          <i data-lucide="info" class="w-8 h-8 text-amber-600"></i>
+        </div>
+        <h2 class="text-2xl font-bold mb-4">Demo Instance</h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-6">
+          This public demo has rate limits (30 requests/minute) for fair usage.
+          For unlimited access and production use, please self-host your own
+          instance.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <a
+            href="self-host.html"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+          >
+            <i data-lucide="server" class="w-5 h-5"></i>
+            Self-Host Guide
+          </a>
+          <a
+            href="https://vercel.com/new/clone?repository-url=https://github.com/dhanyyudi/bmkg-api"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <i data-lucide="zap" class="w-5 h-5"></i>
+            Deploy to Vercel
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Source -->
+    <section
+      class="py-16 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800"
+    >
+      <div class="max-w-4xl mx-auto px-4 text-center">
+        <div class="inline-flex items-center gap-3 mb-4">
+          <img
+            src="https://upload.wikimedia.org/wikipedia/commons/1/12/Logo_BMKG_%282010%29.png"
+            alt="BMKG Logo"
+            class="h-12 w-auto"
+          />
+          <span class="text-lg font-semibold">Data Source</span>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mb-2">
+          All data provided by
+          <a
+            href="https://data.bmkg.go.id"
+            target="_blank"
+            class="text-primary-600 hover:underline font-medium"
+            >BMKG</a
+          >
+          (Badan Meteorologi, Klimatologi, dan Geofisika)
+        </p>
+        <p class="text-sm text-gray-500">
+          This API is not affiliated with BMKG. All data belongs to BMKG.
+        </p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer
+      class="bg-gray-50 dark:bg-gray-800/50 py-8 border-t border-gray-200 dark:border-gray-800"
+    >
+      <div class="max-w-6xl mx-auto px-4">
+        <div
+          class="flex flex-col sm:flex-row items-center justify-between gap-4"
+        >
+          <div class="flex items-center gap-2">
+            <i data-lucide="activity" class="w-5 h-5 text-primary-600"></i>
+            <span class="font-semibold">BMKG API</span>
+          </div>
+          <div class="flex items-center gap-6">
+            <a
+              href="/docs"
+              class="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >Documentation</a
+            >
+            <a
+              href="self-host.html"
+              class="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >Self-Hosting</a
+            >
+            <a
+              href="/redoc"
+              class="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >ReDoc</a
+            >
+            <a
+              href="https://github.com/dhanyyudi/bmkg-api"
+              class="text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600"
+              >GitHub</a
+            >
+          </div>
+          <div class="text-sm text-gray-500">Made by dhanypedia</div>
+        </div>
+        <div
+          class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800 text-center text-xs text-gray-500"
+        >
+          Licensed under MIT License
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // Check API status
+      fetch("/health")
+        .then((r) => r.json())
+        .then((data) => {
+          document.getElementById("api-status").textContent = "API Online";
+        })
+        .catch(() => {
+          document.getElementById("api-status").textContent = "API Offline";
+          document
+            .querySelector("#api-status")
+            .parentElement.classList.remove("bg-green-100", "text-green-700");
+          document
+            .querySelector("#api-status")
+            .parentElement.classList.add("bg-red-100", "text-red-700");
+        });
+
+      // Copy code function
+      function copyCode(elementId) {
+        const code = document.getElementById(elementId).textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          const btn = document.getElementById("copy-hero");
+          btn.textContent = "Copied!";
+          setTimeout(() => (btn.textContent = "Copy"), 2000);
+        });
+      }
+
+      // API Explorer Alpine component with Integrated Visualizer
+      function apiExplorer() {
+        return {
+          selectedEndpoint: "nowcast",
+          loading: false,
+          response: null,
+          statusCode: null,
+          statusClass: "",
+          copied: false,
+          showMap: false,
+          map: null,
+          alertCodes: [],
+          loadingAlerts: false,
+          params: {
+            adm4: "33.26.16.2005",
+            query: "pekalongan",
+            alertCode: "",
+          },
+
+          get hasParams() {
+            return [
+              "weather",
+              "weather-current",
+              "wilayah-search",
+              "nowcast-detail",
+            ].includes(this.selectedEndpoint);
+          },
+
+          get selectedAlertInfo() {
+            return this.alertCodes.find(
+              (a) => a.code === this.params.alertCode,
+            );
+          },
+
+          // Computed: can this response be visualized?
+          get canVisualize() {
+            if (!this.response?.data) return false;
+            const data = this.response.data;
+            // Earthquake with lat/lon
+            if (data.lat && data.lon) return true;
+            // Nowcast with warnings containing areas
+            if (
+              data.warnings?.some((w) =>
+                w.areas?.some((a) => a.polygon?.length > 0),
+              )
+            )
+              return true;
+            return false;
+          },
+
+          // Computed: formatted JSON
+          get formattedResponse() {
+            if (!this.response) return "";
+            return JSON.stringify(this.response, null, 2);
+          },
+
+          // Computed: visualization type
+          get vizType() {
+            if (!this.response?.data) return null;
+            const data = this.response.data;
+            if (data.lat && data.lon) return "earthquake";
+            if (data.warnings) return "nowcast";
+            return null;
+          },
+
+          // Computed: info for info card
+          get vizInfo() {
+            if (!this.response?.data) return null;
+            const data = this.response.data;
+
+            if (data.lat && data.lon) {
+              return {
+                title: "Earthquake Info",
+                magnitude: data.magnitude,
+                region: data.region,
+                datetime: data.datetime,
+                depth_km: data.depth_km,
+                felt_report: data.felt_report,
+              };
+            }
+
+            if (data.warnings?.length > 0) {
+              const w = data.warnings[0];
+              return {
+                title: "Weather Warning",
+                event: w.event,
+                headline: w.headline,
+                description: w.description,
+                severity: w.severity,
+                urgency: w.urgency,
+                certainty: w.certainty,
+                effective: w.effective,
+                expires: w.expires,
+              };
+            }
+            return null;
+          },
+
+          // Computed: image URL for infographic/shakemap
+          get vizImageUrl() {
+            if (!this.response?.data) return null;
+            const data = this.response.data;
+            if (data.shakemap_url) return data.shakemap_url;
+            if (data.warnings?.[0]?.infographic_url)
+              return data.warnings[0].infographic_url;
+            return null;
+          },
+
+          get vizImageTitle() {
+            if (this.vizType === "earthquake") return "ShakeMap (MMI)";
+            if (this.vizType === "nowcast") return "BMKG Infographic";
+            return "Image";
+          },
+
+          // Helper: severity color class
+          severityClass(severity) {
+            const s = severity?.toLowerCase() || "";
+            if (s.includes("extreme"))
+              return "bg-red-100 dark:bg-red-900/30 text-red-700";
+            if (s.includes("severe"))
+              return "bg-orange-100 dark:bg-orange-900/30 text-orange-700";
+            if (s.includes("moderate"))
+              return "bg-amber-100 dark:bg-amber-900/30 text-amber-700";
+            return "bg-blue-100 dark:bg-blue-900/30 text-blue-700";
+          },
+
+          // Helper: format date
+          formatDate(dateStr) {
+            if (!dateStr) return "-";
+            const date = new Date(dateStr);
+            return date.toLocaleString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          },
+
+          // Helper: highlight affected area names in description
+          highlightAreas(desc) {
+            if (!desc) return '';
+            // Match "khususnya di [area list]." and bold the area names
+            return desc.replace(
+              /(khususnya di\s)([^.]+)(\.|$)/i,
+              (match, prefix, areas, dot) => {
+                const highlighted = areas.split(',').map(a =>
+                  `<span class="font-semibold text-amber-600 dark:text-amber-400">${a.trim()}</span>`
+                ).join(', ');
+                return `${prefix}${highlighted}${dot}`;
+              }
+            );
+          },
+
+          async fetchAlertCodes() {
+            this.loadingAlerts = true;
+            try {
+              const res = await fetch("/v1/nowcast");
+              const data = await res.json();
+              if (data.data) {
+                this.alertCodes = data.data.map((a) => ({
+                  code: a.code,
+                  province: a.province,
+                  description: a.description,
+                  published_at: a.published_at,
+                }));
+                // Auto-select first if none selected
+                if (!this.params.alertCode && this.alertCodes.length > 0) {
+                  this.params.alertCode = this.alertCodes[0].code;
+                }
+              }
+            } catch (err) {
+              console.error("Failed to fetch alert codes:", err);
+              this.alertCodes = [];
+            }
+            this.loadingAlerts = false;
+          },
+
+          onEndpointChange() {
+            this.response = null;
+            this.showMap = false;
+            this.destroyMap();
+            // Fetch alerts when nowcast-detail is selected
+            if (
+              this.selectedEndpoint === "nowcast-detail" &&
+              this.alertCodes.length === 0
+            ) {
+              this.fetchAlertCodes();
+            }
+          },
+
+          buildUrl() {
+            const base = "https://bmkg-restapi.vercel.app/v1";
+            switch (this.selectedEndpoint) {
+              case "earthquake-latest":
+                return `${base}/earthquake/latest`;
+              case "earthquake-recent":
+                return `${base}/earthquake/recent`;
+              case "earthquake-felt":
+                return `${base}/earthquake/felt`;
+              case "weather":
+                return `${base}/weather/${this.params.adm4 || "{adm4_code}"}`;
+              case "weather-current":
+                return `${base}/weather/${this.params.adm4 || "{adm4_code}"}/current`;
+              case "nowcast":
+                return `${base}/nowcast`;
+              case "nowcast-detail":
+                return `${base}/nowcast/${this.params.alertCode || "{alert_code}"}`;
+              case "wilayah-provinces":
+                return `${base}/wilayah/provinces`;
+              case "wilayah-search":
+                return `${base}/wilayah/search?q=${this.params.query || "{query}"}`;
+              default:
+                return base;
+            }
+          },
+
+          destroyMap() {
+            if (this.map) {
+              this.map.remove();
+              this.map = null;
+            }
+          },
+
+          async execute() {
+            this.loading = true;
+            this.response = null;
+            this.showMap = false;
+            this.destroyMap();
+
+            try {
+              const url = this.buildUrl().replace(
+                "https://bmkg-restapi.vercel.app",
+                "",
+              );
+              const res = await fetch(url);
+              this.statusCode = res.status;
+              this.statusClass = res.ok
+                ? "px-2 py-1 bg-green-100 text-green-700 rounded text-xs"
+                : "px-2 py-1 bg-red-100 text-red-700 rounded text-xs";
+              this.response = await res.json();
+            } catch (err) {
+              this.statusCode = "Error";
+              this.statusClass =
+                "px-2 py-1 bg-red-100 text-red-700 rounded text-xs";
+              this.response = { error: err.message };
+            }
+
+            this.loading = false;
+          },
+
+          copyResponse() {
+            navigator.clipboard
+              .writeText(JSON.stringify(this.response, null, 2))
+              .then(() => {
+                this.copied = true;
+                setTimeout(() => (this.copied = false), 2000);
+              });
+          },
+
+          // Initialize map - called when showMap becomes true
+          initMap() {
+            if (!this.canVisualize) return;
+
+            // Ensure DOM is ready
+            this.$nextTick(() => {
+              setTimeout(() => {
+                this._doInitMap();
+              }, 150);
+            });
+          },
+
+          _doInitMap() {
+            const container = document.getElementById("viz-map");
+            if (!container) {
+              console.error("Map container not found");
+              return;
+            }
+
+            // Clear container
+            container.innerHTML = "";
+
+            // Destroy existing
+            if (this.map) {
+              this.map.remove();
+              this.map = null;
+            }
+
+            if (this.vizType === "earthquake") {
+              this._initEarthquakeMap();
+            } else if (this.vizType === "nowcast") {
+              this._initNowcastMap();
+            }
+          },
+
+          _initEarthquakeMap() {
+            const data = this.response.data;
+            const center = [data.lon, data.lat];
+
+            this.map = new maplibregl.Map({
+              container: "viz-map",
+              style:
+                "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+              center: center,
+              zoom: 7,
+              attributionControl: false,
+            });
+
+            this.map.addControl(
+              new maplibregl.AttributionControl({
+                compact: true,
+              }),
+              "bottom-right",
+            );
+
+            this.map.on("load", () => {
+              // Add marker with custom element
+              const el = document.createElement("div");
+              el.className = "earthquake-marker";
+              el.style.cssText = `
+                            width: 24px;
+                            height: 24px;
+                            background: #ef4444;
+                            border: 3px solid white;
+                            border-radius: 50%;
+                            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3);
+                            cursor: pointer;
+                        `;
+
+              new maplibregl.Marker({ element: el })
+                .setLngLat(center)
+                .setPopup(
+                  new maplibregl.Popup({ offset: 25 }).setHTML(`
+                                        <div style="padding: 8px;">
+                                            <div style="font-weight: 600; color: #ef4444;">${data.magnitude} M</div>
+                                            <div style="font-size: 12px; color: #666;">${data.region}</div>
+                                        </div>
+                                    `),
+                )
+                .addTo(this.map);
+            });
+          },
+
+          _initNowcastMap() {
+            const warning = this.response.data.warnings?.[0];
+            const areas = warning?.areas || [];
+
+            if (areas.length === 0 || !areas[0].polygon) {
+              console.error("No polygon data for nowcast map");
+              return;
+            }
+
+            // Helper: Convert [lat, lon] to [lon, lat] for MapLibre
+            const toLngLat = (coord) => [coord[1], coord[0]];
+
+            // Calculate center from first polygon (API sends [lat, lon])
+            const polygon = areas[0].polygon;
+            const center = polygon.reduce(
+              (acc, coord) => ({
+                lng: acc.lng + coord[1] / polygon.length, // coord[1] is lon
+                lat: acc.lat + coord[0] / polygon.length, // coord[0] is lat
+              }),
+              { lng: 0, lat: 0 },
+            );
+
+            this.map = new maplibregl.Map({
+              container: "viz-map",
+              style:
+                "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+              center: [center.lng, center.lat],
+              zoom: 8,
+              attributionControl: false,
+            });
+
+            this.map.addControl(
+              new maplibregl.AttributionControl({
+                compact: true,
+              }),
+              "bottom-right",
+            );
+
+            // Helper: Check if two coordinates are the same (within tolerance)
+            const coordsEqual = (a, b, eps = 0.0001) =>
+              Math.abs(a[0] - b[0]) < eps && Math.abs(a[1] - b[1]) < eps;
+
+            // Split flat coordinate array into closed rings.
+            // Uses two detection methods:
+            // 1. Coordinate matching: close ring when current point matches start
+            // 2. Distance jump: split when gap > 10km between consecutive points
+            //    (indicates boundary between separate polygon groups)
+            const splitRings = (coords) => {
+              if (!coords || coords.length < 3) return [];
+              const rings = [];
+              let ringStart = coords[0];
+              let currentRing = [toLngLat(coords[0])];
+              for (let i = 1; i < coords.length; i++) {
+                const curr = coords[i];
+                const currLL = toLngLat(curr);
+
+                // Distance jump detection: if gap > 10km, it's a new polygon
+                if (currentRing.length >= 4) {
+                  const prev = currentRing[currentRing.length - 1];
+                  const gap = turf.distance(prev, currLL, {
+                    units: "kilometers",
+                  });
+                  if (gap > 10) {
+                    currentRing.push(currentRing[0]); // force-close
+                    rings.push(currentRing);
+                    ringStart = curr;
+                    currentRing = [currLL];
+                    continue;
+                  }
+                }
+
+                currentRing.push(currLL);
+                // Coordinate matching: close ring when point matches start
+                if (coordsEqual(curr, ringStart) && currentRing.length >= 4) {
+                  rings.push(currentRing);
+                  currentRing = [];
+                  if (i + 1 < coords.length) {
+                    ringStart = coords[i + 1];
+                    currentRing = [toLngLat(coords[i + 1])];
+                    i++;
+                  }
+                }
+              }
+              if (currentRing.length >= 4) {
+                currentRing.push(currentRing[0]);
+                rings.push(currentRing);
+              }
+              return rings;
+            };
+
+            // Filter polygons: reject strip artifacts by max edge length.
+            // Real district boundaries have many short edges (<5km) tracing
+            // geographic features. Strip artifacts have long diagonal edges (50-100km+)
+            // connecting distant polygon clusters.
+            const getValidPolygons = (coords) => {
+              const rings = splitRings(coords);
+              if (rings.length === 0) return [];
+
+              const MAX_EDGE_KM = 20;
+              const valid = [];
+              for (const ring of rings) {
+                try {
+                  const poly = turf.polygon([ring]);
+                  if (turf.area(poly) <= 0) continue;
+                  // Check max edge length — strip artifacts have 50km+ edges
+                  let maxEdge = 0;
+                  for (let i = 0; i < ring.length - 1; i++) {
+                    const d = turf.distance(ring[i], ring[i + 1], {
+                      units: "kilometers",
+                    });
+                    if (d > maxEdge) maxEdge = d;
+                  }
+                  if (maxEdge <= MAX_EDGE_KM) valid.push(poly);
+                } catch (e) {
+                  /* skip invalid rings */
+                }
+              }
+              return valid;
+            };
+
+            this.map.on("load", () => {
+              const bounds = new maplibregl.LngLatBounds();
+              let layerIdx = 0;
+
+              areas.forEach((area) => {
+                if (!area.polygon || area.polygon.length < 3) return;
+
+                const polygons = getValidPolygons(area.polygon);
+                if (polygons.length === 0) return;
+
+                // Render each surviving polygon individually
+                polygons.forEach((poly) => {
+                  const coords = poly.geometry.coordinates[0];
+                  coords.forEach((c) => bounds.extend(c));
+
+                  const id = `area-${layerIdx++}`;
+                  this.map.addSource(id, {
+                    type: "geojson",
+                    data: poly,
+                  });
+
+                  this.map.addLayer({
+                    id: `${id}-fill`,
+                    type: "fill",
+                    source: id,
+                    paint: {
+                      "fill-color": "#f59e0b",
+                      "fill-opacity": 0.35,
+                    },
+                  });
+
+                  this.map.addLayer({
+                    id: `${id}-outline`,
+                    type: "line",
+                    source: id,
+                    paint: {
+                      "line-color": "#d97706",
+                      "line-width": 2,
+                      "line-opacity": 0.7,
+                    },
+                  });
+
+                  this.map.on("click", `${id}-fill`, (e) => {
+                    new maplibregl.Popup()
+                      .setLngLat(e.lngLat)
+                      .setHTML(
+                        `<strong>${area.name}</strong><br><small>Warning Area</small>`,
+                      )
+                      .addTo(this.map);
+                  });
+
+                  this.map.on("mouseenter", `${id}-fill`, () => {
+                    this.map.getCanvas().style.cursor = "pointer";
+                  });
+                  this.map.on("mouseleave", `${id}-fill`, () => {
+                    this.map.getCanvas().style.cursor = "";
+                  });
+                });
+              });
+
+              if (!bounds.isEmpty()) {
+                this.map.fitBounds(bounds, { padding: 50, maxZoom: 10 });
+              }
+            });
+          },
+        };
+      }
+
+      // Global function for Nowcast card link
+      function goToNowcastExplorer() {
+        document
+          .getElementById("explorer")
+          .scrollIntoView({ behavior: "smooth" });
+        setTimeout(() => {
+          const el = document.querySelector("[x-data]");
+          if (el && el.__x && el.__x.$data.selectedEndpoint !== undefined) {
+            el.__x.$data.selectedEndpoint = "nowcast-detail";
+          }
+        }, 300);
+      }
+    </script>
+  </body>
+</html>

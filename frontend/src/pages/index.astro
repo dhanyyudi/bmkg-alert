@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { Dashboard } from '@/components/Dashboard';
+import { SetupCheck } from '@/components/SetupCheck';
+import { DemoBanner } from '@/components/DemoBanner';
+---
+
+<Layout title="Dashboard">
+	<!-- Client-side check: redirect to /setup if setup_completed=false -->
+	<SetupCheck client:load />
+	<!-- Demo mode banner (only visible when demo_mode=true) -->
+	<DemoBanner client:load />
+	<Dashboard client:only="react" />
+</Layout>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/cap/nowcast-rss-style.xsl"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>Peringatan Dini Cuaca BMKG</title>
+        <link>https://www.bmkg.go.id/alerts/nowcast/id/rss.xml</link>
+        <description>Peringatan Dini Cuaca dari BMKG (Badan Meteorologi, Klimatologi, dan Geofisika)</description>
+        <atom:link href="https://www.bmkg.go.id/alerts/nowcast/id/rss.xml" rel="self" type="application/rss+xml"/>
+        <language>id</language>
+        <copyright>public domain</copyright>
+        <pubDate>Mon, 16 Feb 2026 16:17:19 +0000</pubDate>
+        <lastBuildDate>Mon, 16 Feb 2026 16:17:19 +0000</lastBuildDate>
+        <docs>http://blogs.law.harvard.edu/tech/rss</docs>
+        
+    <item>
+        <title>Hujan Lebat disertai Petir di Banten</title>
+        <link>https://www.bmkg.go.id/alerts/nowcast/id/CBT20260216004_alert.xml</link>
+        <description>Hujan lebat disertai petir akan terjadi pada 16 February 2026, 23:00 WIB di sebagian wilayah Banten, khususnya di Bojonegara, Cibeber, Cipanas, Citangkil, Ciwandan, Curug Bitung, Gerogol, Jombang, Kasemen, Kramatwatu, Lebakgedong, Muncang, Pontang, Pulo Ampel, Pulomerak, Purwakarta, Sajira, Sobang, Tanara, Tirtayasa.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 17 February 2026, 02:00 WIB.</description>
+        <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+        <category>Met</category>
+        <guid isPermaLink="false">2.49.0.1.360.0.2026.02.16.16.36.004</guid>
+        <pubDate>Mon, 16 Feb 2026 22:50:00 +0700</pubDate>
+    </item>
+
+    <item>
+        <title>Hujan Lebat disertai Petir di Jawa Tengah</title>
+        <link>https://www.bmkg.go.id/alerts/nowcast/id/CJG20260216005_alert.xml</link>
+        <description>Hujan lebat disertai petir akan terjadi pada 16 February 2026, 22:00 WIB di sebagian wilayah Jawa Tengah, khususnya di Wiradesa, Kajen, Karanganyar, Pekalongan, Wiradesa.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 17 February 2026, 01:00 WIB.</description>
+        <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+        <category>Met</category>
+        <guid isPermaLink="false">2.49.0.1.360.0.2026.02.16.16.45.005</guid>
+        <pubDate>Mon, 16 Feb 2026 22:00:00 +0700</pubDate>
+    </item>
+
+    <item>
+        <title>Hujan Lebat disertai Petir di Sumatera Utara</title>
+        <link>https://www.bmkg.go.id/alerts/nowcast/id/CSU20260216005_alert.xml</link>
+        <description>Hujan lebat disertai petir akan terjadi pada 16 February 2026, 22:45 WIB di sebagian wilayah Sumatera Utara, khususnya di Alasa, Amandraya, Aramo, Bandar Pasir Mandoge.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 17 February 2026, 01:45 WIB.</description>
+        <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+        <category>Met</category>
+        <guid isPermaLink="false">2.49.0.1.360.0.2026.02.16.16.12.005</guid>
+        <pubDate>Mon, 16 Feb 2026 22:15:00 +0700</pubDate>
+    </item>
+    </channel>
+</rss>

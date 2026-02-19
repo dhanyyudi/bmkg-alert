@@ -1,0 +1,34 @@
+{
+  "Infogempa": {
+    "gempa": [
+      {
+        "Tanggal": "16 Feb 2026",
+        "Jam": "13:15:30 WIB",
+        "DateTime": "2026-02-16T06:15:30+00:00",
+        "Coordinates": "-6.89,109.67",
+        "Lintang": "6.89 LS",
+        "Bujur": "109.67 BT",
+        "Magnitude": "5.4",
+        "Kedalaman": "10 km",
+        "Wilayah": "18 km TimurLaut Pekalongan",
+        "Potensi": "Tidak berpotensi tsunami",
+        "Dirasakan": "III Pekalongan, II Batang",
+        "Shakemap": "20260216131530.mmi.jpg"
+      },
+      {
+        "Tanggal": "16 Feb 2026",
+        "Jam": "10:22:15 WIB",
+        "DateTime": "2026-02-16T03:22:15+00:00",
+        "Coordinates": "-8.12,115.45",
+        "Lintang": "8.12 LS",
+        "Bujur": "115.45 BT",
+        "Magnitude": "5.1",
+        "Kedalaman": "12 km",
+        "Wilayah": "50 km BaratLaut Denpasar",
+        "Potensi": "Tidak berpotensi tsunami",
+        "Dirasakan": "II Denpasar",
+        "Shakemap": "20260216102215.mmi.jpg"
+      }
+    ]
+  }
+}

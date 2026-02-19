@@ -1,0 +1,16 @@
+# Development requirements (local/Docker)
+
+# Include base requirements
+-r requirements.txt
+
+# Production ASGI server
+uvicorn[standard]>=0.27.0
+
+# Code quality
+black>=24.0
+flake8>=7.0
+mypy>=1.8
+bandit[toml]>=1.7
+
+# Coverage
+pytest-cov>=4.1

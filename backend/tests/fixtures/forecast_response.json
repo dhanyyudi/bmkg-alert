@@ -1,0 +1,136 @@
+{
+  "status": "success",
+  "message": "Data prakiraan cuaca berhasil diambil",
+  "lokasi": {
+    "adm4": "33.26.16.1001",
+    "provinsi": "Jawa Tengah",
+    "kabkota": "Kab. Pekalongan",
+    "kecamatan": "Wiradesa",
+    "deskel": "Kadipaten",
+    "lat": -6.89,
+    "lon": 109.67,
+    "timezone": "+0700"
+  },
+  "data": [
+    {
+      "local_datetime": "2026-02-16 07:00:00",
+      "utc_datetime": "2026-02-16 00:00:00",
+      "t": 27,
+      "hu": 83,
+      "weather": 3,
+      "ws": 7.3,
+      "wd": "SW",
+      "wd_deg": 266,
+      "tcc": 100,
+      "vs": 32349
+    },
+    {
+      "local_datetime": "2026-02-16 10:00:00",
+      "utc_datetime": "2026-02-16 03:00:00",
+      "t": 29,
+      "hu": 75,
+      "weather": 1,
+      "ws": 8.5,
+      "wd": "SW",
+      "wd_deg": 270,
+      "tcc": 60,
+      "vs": 35000
+    },
+    {
+      "local_datetime": "2026-02-16 13:00:00",
+      "utc_datetime": "2026-02-16 06:00:00",
+      "t": 31,
+      "hu": 70,
+      "weather": 1,
+      "ws": 10.0,
+      "wd": "WSW",
+      "wd_deg": 255,
+      "tcc": 40,
+      "vs": 38000
+    },
+    {
+      "local_datetime": "2026-02-16 16:00:00",
+      "utc_datetime": "2026-02-16 09:00:00",
+      "t": 30,
+      "hu": 72,
+      "weather": 2,
+      "ws": 9.0,
+      "wd": "W",
+      "wd_deg": 270,
+      "tcc": 70,
+      "vs": 36000
+    },
+    {
+      "local_datetime": "2026-02-16 19:00:00",
+      "utc_datetime": "2026-02-16 12:00:00",
+      "t": 27,
+      "hu": 80,
+      "weather": 3,
+      "ws": 6.5,
+      "wd": "SW",
+      "wd_deg": 266,
+      "tcc": 90,
+      "vs": 30000
+    },
+    {
+      "local_datetime": "2026-02-16 22:00:00",
+      "utc_datetime": "2026-02-16 15:00:00",
+      "t": 25,
+      "hu": 88,
+      "weather": 5,
+      "ws": 5.0,
+      "wd": "S",
+      "wd_deg": 180,
+      "tcc": 100,
+      "vs": 25000
+    },
+    {
+      "local_datetime": "2026-02-17 01:00:00",
+      "utc_datetime": "2026-02-16 18:00:00",
+      "t": 24,
+      "hu": 90,
+      "weather": 5,
+      "ws": 4.0,
+      "wd": "S",
+      "wd_deg": 180,
+      "tcc": 100,
+      "vs": 20000
+    },
+    {
+      "local_datetime": "2026-02-17 04:00:00",
+      "utc_datetime": "2026-02-16 21:00:00",
+      "t": 24,
+      "hu": 92,
+      "weather": 10,
+      "ws": 4.5,
+      "wd": "SE",
+      "wd_deg": 135,
+      "tcc": 100,
+      "vs": 15000
+    },
+    {
+      "local_datetime": "2026-02-17 07:00:00",
+      "utc_datetime": "2026-02-17 00:00:00",
+      "t": 26,
+      "hu": 85,
+      "weather": 3,
+      "ws": 6.0,
+      "wd": "SE",
+      "wd_deg": 135,
+      "tcc": 100,
+      "vs": 28000
+    },
+    {
+      "local_datetime": "2026-02-17 10:00:00",
+      "utc_datetime": "2026-02-17 03:00:00",
+      "t": 28,
+      "hu": 78,
+      "weather": 2,
+      "ws": 7.0,
+      "wd": "E",
+      "wd_deg": 90,
+      "tcc": 80,
+      "vs": 32000
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { AlertDetail } from '@/components/AlertDetail';
+
+const { id } = Astro.params;
+const alertId = parseInt(id ?? '0', 10);
+---
+
+<Layout title={`Alert #${alertId}`}>
+    <AlertDetail alertId={alertId} client:only="react" />
+</Layout>

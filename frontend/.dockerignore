@@ -1,0 +1,9 @@
+node_modules
+.astro
+dist
+.env
+.env.*
+.git/
+.vscode/
+.idea/
+README.md

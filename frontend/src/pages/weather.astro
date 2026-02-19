@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { WeatherPage } from '../components/weather/WeatherPage';
+---
+
+<Layout title="Weather Forecast | BMKG Alert">
+	<WeatherPage client:load />
+</Layout>

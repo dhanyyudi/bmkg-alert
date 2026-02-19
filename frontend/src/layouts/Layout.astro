@@ -1,0 +1,43 @@
+---
+import "@/styles/global.css";
+import { Sidebar } from "@/components/Sidebar";
+import { Toaster } from 'sonner';
+
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="BMKG Alert System Dashboard" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title} - BMKG Alert</title>
+		<!-- Apply saved theme before first paint to avoid flash -->
+		<script is:inline>
+			(function() {
+				const saved = localStorage.getItem('bmkg-theme');
+				const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+				if (saved === 'dark' || (!saved && prefersDark)) {
+					document.documentElement.classList.add('dark');
+				}
+			})();
+		</script>
+	</head>
+	<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex">
+        <Sidebar client:load pathname={Astro.url.pathname} />  <!-- Navigation Sidebar -->
+        <Toaster client:load position="top-right" />
+		
+        <main class="flex-1 min-w-0 overflow-y-auto h-screen">
+            <div class="p-4 md:p-6">
+			    <slot />
+            </div>
+		</main>
+	</body>
+</html>

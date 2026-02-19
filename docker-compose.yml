@@ -1,0 +1,42 @@
+# ── BMKG Alert — Production (Dhanypedia Homeserver) ──────────────────────────
+# Pull from GHCR, no host ports, private_network only.
+# Access via Cloudflare Tunnel / Nginx Proxy Manager.
+
+services:
+  bmkg-alert-backend:
+    container_name: bmkg-alert-backend
+    image: ghcr.io/dhanyyudi/bmkg-alert-backend:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DB_PATH=/app/data/bmkg_alert.db
+    volumes:
+      - ./data/backend:/app/data
+    networks:
+      - private_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bmkg-alert-frontend:
+    container_name: bmkg-alert-frontend
+    image: ghcr.io/dhanyyudi/bmkg-alert-frontend:latest
+    restart: unless-stopped
+    environment:
+      - API_URL=http://bmkg-alert-backend:8000
+    networks:
+      - private_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  private_network:
+    external: true

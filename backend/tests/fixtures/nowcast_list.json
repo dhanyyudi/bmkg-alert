@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "code": "CJH20260217006",
+      "province": "Jawa Tengah",
+      "description": "Hujan lebat disertai petir akan terjadi pada 17 February 2026...",
+      "published_at": "2026-02-17T19:45:00+07:00",
+      "detail_url": "/v1/nowcast/CJH20260217006"
+    },
+    {
+      "code": "CJT20260217006",
+      "province": "Jawa Timur",
+      "description": "Hujan lebat disertai petir akan terjadi pada 17 February 2026...",
+      "published_at": "2026-02-17T18:10:00+07:00",
+      "detail_url": "/v1/nowcast/CJT20260217006"
+    }
+  ],
+  "meta": {
+    "count": 2,
+    "fetched_at": "2026-02-17T14:14:29.232192Z",
+    "cache_ttl": 119,
+    "language": "id"
+  },
+  "attribution": "BMKG (Badan Meteorologi, Klimatologi, dan Geofisika)"
+}

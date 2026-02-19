@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<?xml-stylesheet type="text/xsl" href="/cap/nowcast-cap-style.xsl"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>2.49.0.1.360.0.2026.02.16.16.36.004</identifier>
+  <sender>cuaca.ekstrem@bmkg.go.id</sender>
+  <sent>2026-02-16T22:50:00+07:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <info>
+    <language>id</language>
+    <category>Met</category>
+    <event>Hujan Lebat dan Petir</event>
+    <urgency>Immediate</urgency>
+    <severity>Moderate</severity>
+    <certainty>Observed</certainty>
+    <eventCode>
+      <valueName>OET</valueName>
+      <value>OET-194</value>
+    </eventCode>
+    <effective>2026-02-16T23:00:00+07:00</effective>
+    <expires>2026-02-17T02:00:00+07:00</expires>
+    <senderName>Badan Meteorologi Klimatologi dan Geofisika</senderName>
+    <headline>Hujan Lebat disertai Petir di Banten</headline>
+    <description>Hujan lebat disertai petir akan terjadi pada 16 February 2026, 23:00 WIB di sebagian wilayah Banten, khususnya di Bojonegara, Cibeber, Cipanas, Citangkil, Ciwandan, Curug Bitung, Gerogol, Jombang, Kasemen, Kramatwatu, Lebakgedong, Muncang, Pontang, Pulo Ampel, Pulomerak, Purwakarta, Sajira, Sobang, Tanara, Tirtayasa.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 17 February 2026, 02:00 WIB.</description>
+    <web>https://nowcasting.bmkg.go.id/infografis/CBT/2026/02/16/infografis.jpg</web>
+    <contact>06221 196</contact>
+    <area>
+      <areaDesc>Banten</areaDesc>
+      <polygon>-5.981,105.994 -6.004,106.022 -6.010,106.029 -6.016,106.047 -6.020,106.049 -6.030,106.036 -6.041,106.031 -6.039,106.018 -6.046,106.005 -6.021,105.999 -6.005,105.983 -6.000,105.983 -5.993,105.981 -5.981,105.994</polygon>
+      <polygon>-6.559,106.416 -6.569,106.424 -6.589,106.430 -6.682,106.429 -6.695,106.436 -6.708,106.450 -6.728,106.451 -6.730,106.434 -6.726,106.423 -6.709,106.421 -6.697,106.410 -6.666,106.400 -6.626,106.372 -6.620,106.362 -6.605,106.363 -6.581,106.354 -6.581,106.380 -6.561,106.385 -6.559,106.416</polygon>
+    </area>
+  </info>
+</alert>

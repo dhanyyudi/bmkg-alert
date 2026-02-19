@@ -1,0 +1,34 @@
+{
+  "data": {
+    "province": "Jawa Tengah",
+    "warnings": [
+      {
+        "identifier": "2.49.0.1.360.0.2026.02.17.14.33.006",
+        "event": "Hujan Lebat dan Petir",
+        "severity": "Moderate",
+        "urgency": "Immediate",
+        "certainty": "Observed",
+        "effective": "2026-02-17T19:55:00+07:00",
+        "expires": "2026-02-17T23:00:00+07:00",
+        "headline": "Hujan Lebat disertai Petir di Jawa Tengah",
+        "description": "Hujan lebat disertai petir akan terjadi pada 17 February 2026, 19:55 WIB di sebagian wilayah Jawa Tengah, khususnya di Alian, Bonorowo, Bruno, Butuh, Gebang, Grabag, Jatilawang, Kalibawang, Kalibening, Karanganyar, Karanggayam, Karangsambung, Kebasen, Kemiri, Kesugihan, Kutoarjo, Kutowinangun, Mirit, Ngombol, Padureso, Pejagoan, Pituruh, Poncowarno, Prembun, Purwodadi, Rawalo, Sruweng. Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.",
+        "sender": "Badan Meteorologi Klimatologi dan Geofisika",
+        "infographic_url": "https://nowcasting.bmkg.go.id/infografis/CJH/2026/02/17/infografis.jpg",
+        "areas": [
+          {
+            "name": "Jawa Tengah",
+            "polygon": [[-7.586, 110.017], [-7.597, 110.019]]
+          }
+        ],
+        "is_expired": false
+      }
+    ]
+  },
+  "meta": {
+    "count": 1,
+    "fetched_at": "2026-02-17T14:14:43.356951Z",
+    "cache_ttl": 119,
+    "language": "id"
+  },
+  "attribution": "BMKG (Badan Meteorologi, Klimatologi, dan Geofisika)"
+}
