@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, History, Settings, PlayCircle, Menu, X, CloudRain, Sun, Moon } from 'lucide-react';
+import { Home, History, Settings, PlayCircle, Menu, X, CloudRain, Sun, Moon, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
@@ -32,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ pathname }) => {
         { label: 'History', icon: History, href: '/history' },
         { label: 'Settings', icon: Settings, href: '/settings' },
         { label: 'Try Mode', icon: PlayCircle, href: '/try' },
+        { label: 'Deploy', icon: Server, href: '/deploy' },
     ];
 
     // Get current path for active state highlighting (simple check)

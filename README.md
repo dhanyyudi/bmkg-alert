@@ -69,8 +69,6 @@ docker compose up -d
 
 Open **http://localhost:3000** — the Setup Wizard will guide you through the rest.
 
-> For homeserver / reverse-proxy deployment (no exposed ports), see the [Production Deployment](#production-deployment) section.
-
 ---
 
 ## Setting Up Telegram
@@ -111,25 +109,50 @@ Optional notification channels:
 
 ## Production Deployment
 
-For homeserver deployment behind Nginx Proxy Manager or Cloudflare Tunnel (no host ports):
+The included `docker-compose.yml` exposes port `3000` on the frontend container. The frontend internally proxies all `/api` requests to the backend — you only need to expose one service.
 
-```yaml
-# docker-compose.yml already configured for this:
-# - No host port mappings
-# - Connects to external 'private_network'
-# - Volumes in ./data/
+### Behind a Reverse Proxy (Nginx, Caddy, Cloudflare Tunnel, etc.)
+
+If you prefer not to expose a host port, remove the `ports` block from `docker-compose.yml` and point your proxy directly to `bmkg-alert-frontend:3000` on your Docker network.
+
+Example Caddy config:
+
+```
+bmkg-alert.example.com {
+    reverse_proxy bmkg-alert-frontend:3000
+}
 ```
 
-Point your reverse proxy to:
-- `bmkg-alert-frontend:3000` — the main web UI (proxies `/api` to backend internally)
+Example Nginx location block:
 
-The frontend container handles API proxying, so you only need to expose one container.
+```nginx
+server {
+    server_name bmkg-alert.example.com;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
 
-To update:
+### Data Persistence
+
+All data is stored in `./data/backend/` on the host. Back up this directory to preserve your configuration, alert history, and database.
+
+### Keeping It Updated
 
 ```bash
 docker compose pull
 docker compose up -d
+```
+
+### Volume Permissions
+
+If the backend container fails to write to `./data/`, ensure the directory is owned by UID 1000:
+
+```bash
+sudo chown -R 1000:1000 ./data/
 ```
 
 ---
