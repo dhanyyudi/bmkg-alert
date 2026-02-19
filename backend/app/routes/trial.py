@@ -206,6 +206,9 @@ async def cancel_trial(trial_id: int, chat_id: str = Query(..., description="Cha
         "<b>Trial BMKG Alert Dihentikan</b>\n\n"
         "Trial Anda telah dihentikan. "
         "Terima kasih sudah mencoba BMKG Alert!\n\n"
+        "Untuk mendapatkan notifikasi secara permanen, silakan cek di "
+        "<a href=\"https://github.com/dhanyyudi/bmkg-alert\">github.com/dhanyyudi/bmkg-alert</a> "
+        "atau hubungi <a href=\"https://dhanypedia.com\">dhanypedia.com</a>\n\n"
         "<i>BMKG Alert System</i>"
     )
     await _send_trial_message(row["telegram_chat_id"], cancel_msg)

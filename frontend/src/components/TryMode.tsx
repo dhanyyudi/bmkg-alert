@@ -393,7 +393,7 @@ export const TryMode: React.FC = () => {
                         <label htmlFor="trial-chat-id" className="text-sm font-medium">Chat ID Telegram</label>
                         <Input
                             id="trial-chat-id"
-                            placeholder="Contoh: 822706676"
+                            placeholder="Contoh: 391047285"
                             value={chatId}
                             onChange={e => setChatId(e.target.value)}
                         />

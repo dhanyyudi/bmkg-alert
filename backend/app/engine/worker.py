@@ -358,8 +358,9 @@ class AlertEngine:
                 "<b>Trial BMKG Alert Berakhir</b>\n\n"
                 "Trial 24 jam Anda telah berakhir. "
                 "Terima kasih sudah mencoba BMKG Alert!\n\n"
-                "Untuk mendapatkan notifikasi secara permanen, "
-                "deploy instance BMKG Alert Anda sendiri.\n\n"
+                "Untuk mendapatkan notifikasi secara permanen, silakan cek di "
+                "<a href=\"https://github.com/dhanyyudi/bmkg-alert\">github.com/dhanyyudi/bmkg-alert</a> "
+                "atau hubungi <a href=\"https://dhanypedia.com\">dhanypedia.com</a>\n\n"
                 "<i>BMKG Alert System</i>"
             )
             try:
