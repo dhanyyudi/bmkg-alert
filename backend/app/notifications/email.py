@@ -10,7 +10,10 @@ import aiosmtplib
 import structlog
 
 from app.config import settings
+from html import escape
+
 from app.models import MatchResult, WarningInfo
+from app.notifications.formatter import format_time, severity_label
 
 logger = structlog.get_logger()
 
@@ -67,10 +70,10 @@ class EmailSender:
         self, warning: WarningInfo, match: MatchResult, is_trial: bool
     ) -> tuple[str, str]:
         loc = match.location
-        color = SEVERITY_COLOR.get(warning.severity, "#6B7280")
+        color = SEVERITY_COLOR.get(str(warning.severity), "#6B7280")
         location_name = loc.label or loc.subdistrict_name
 
-        subject = f"[BMKG Alert] {warning.severity}: {warning.event} — {location_name}"
+        subject = f"[BMKG Alert] {severity_label(warning.severity)}: {warning.event}, {location_name}"
 
         description = warning.description or warning.headline or ""
         if len(description) > 500:
@@ -79,7 +82,7 @@ class EmailSender:
         infographic_html = ""
         if warning.infographic_url:
             infographic_html = (
-                f'<p><a href="{warning.infographic_url}" '
+                f'<p><a href="{escape(warning.infographic_url, quote=True)}" '
                 f'style="color:#2563EB;">Lihat Infografis BMKG</a></p>'
             )
 
@@ -87,40 +90,40 @@ class EmailSender:
         if is_trial:
             trial_html = (
                 '<p style="color:#6B7280;font-size:12px;margin-top:16px;">'
-                'Mode Trial — notifikasi aktif sementara.</p>'
+                'Mode trial: notifikasi aktif sementara.</p>'
             )
 
         html = f"""
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
             <div style="background:{color};color:white;padding:16px 20px;border-radius:8px 8px 0 0;">
-                <h2 style="margin:0;">Peringatan Cuaca — {warning.event}</h2>
-                <p style="margin:4px 0 0;opacity:0.9;">{warning.severity}</p>
+                <h2 style="margin:0;">Peringatan Cuaca: {escape(warning.event)}</h2>
+                <p style="margin:4px 0 0;">{severity_label(warning.severity)}</p>
             </div>
             <div style="border:1px solid #E5E7EB;border-top:none;padding:20px;border-radius:0 0 8px 8px;">
                 <table style="width:100%;font-size:14px;border-collapse:collapse;">
                     <tr>
                         <td style="padding:6px 0;color:#6B7280;width:120px;">Lokasi</td>
-                        <td style="padding:6px 0;font-weight:600;">{location_name}</td>
+                        <td style="padding:6px 0;font-weight:600;">{escape(location_name)}</td>
                     </tr>
                     <tr>
                         <td style="padding:6px 0;color:#6B7280;">Wilayah</td>
-                        <td style="padding:6px 0;">{loc.subdistrict_name}, {loc.district_name}, {loc.province_name}</td>
+                        <td style="padding:6px 0;">{escape(loc.subdistrict_name)}, {escape(loc.district_name)}, {escape(loc.province_name)}</td>
                     </tr>
                     <tr>
                         <td style="padding:6px 0;color:#6B7280;">Berlaku</td>
-                        <td style="padding:6px 0;">{warning.effective or '-'}</td>
+                        <td style="padding:6px 0;">{format_time(warning.effective)}</td>
                     </tr>
                     <tr>
                         <td style="padding:6px 0;color:#6B7280;">Hingga</td>
-                        <td style="padding:6px 0;">{warning.expires or '-'}</td>
+                        <td style="padding:6px 0;">{format_time(warning.expires)}</td>
                     </tr>
                 </table>
-                <p style="margin-top:16px;color:#374151;">{description}</p>
+                <p style="margin-top:16px;color:#374151;">{escape(description)}</p>
                 {infographic_html}
                 {trial_html}
                 <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
-                <p style="font-size:12px;color:#9CA3AF;">
-                    Sumber: BMKG (bmkg.go.id) | BMKG Alert System v1.0
+                <p style="font-size:12px;color:#6B7280;">
+                    Sumber: BMKG (bmkg.go.id)
                 </p>
             </div>
         </div>

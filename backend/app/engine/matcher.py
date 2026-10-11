@@ -6,7 +6,14 @@ and kabupaten (district) names against the warning description text.
 
 from __future__ import annotations
 
+import re
+
 from app.models import Location, MatchResult, WarningInfo
+
+# BMKG lists kecamatan as "..., khususnya di A, B, C." and, in some warnings,
+# "... dan dapat meluas ke wilayah D, E."; these words introduce a name.
+_LEAD_INS = (" di ", " wilayah ", " ke ")
+_SEGMENT_SPLIT = re.compile(r"[,.;\n]|\sdan\s")
 
 
 def match_locations(
@@ -15,7 +22,7 @@ def match_locations(
     """Match a warning against a list of monitored locations.
 
     Strategy:
-    1. Primary: check if the subdistrict name appears in the warning description
+    1. Primary: check if the subdistrict name is one of the names listed in the description
     2. Fallback: check if the district name appears in the warning area name
 
     Args:
@@ -26,7 +33,7 @@ def match_locations(
         List of MatchResult for all matched locations.
     """
     results: list[MatchResult] = []
-    description_lower = warning.description.lower()
+    listed_names = _listed_names(warning.description)
 
     # Build a set of area names for kabupaten fallback
     area_names_lower = {area.name.lower() for area in warning.areas}
@@ -36,8 +43,8 @@ def match_locations(
             continue
 
         # Primary match: kecamatan name in description
-        subdistrict = location.subdistrict_name.lower()
-        if subdistrict and _word_boundary_match(subdistrict, description_lower):
+        subdistrict = _normalize(location.subdistrict_name)
+        if subdistrict and subdistrict in listed_names:
             results.append(
                 MatchResult(
                     location=location,
@@ -61,13 +68,34 @@ def match_locations(
     return results
 
 
-def _word_boundary_match(needle: str, haystack: str) -> bool:
-    """Check if needle appears in haystack with word-boundary awareness.
+def name_listed(name: str, description: str) -> bool:
+    """True when `name` is one of the place names the description lists."""
+    needle = _normalize(name)
+    return bool(needle) and needle in _listed_names(description)
 
-    The BMKG description lists kecamatan as comma-separated names.
-    We match if the needle appears as a standalone word or phrase.
+
+def _normalize(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _listed_names(description: str) -> set[str]:
+    """Extract the place names a BMKG description lists.
+
+    A plain substring test is not enough: "Kota Agung" is a substring of
+    "KOTA AGUNG BARAT". Each segment between commas, periods or "dan" is a
+    whole name, optionally behind a lead-in such as "khususnya di".
     """
-    # Use simple substring check — kecamatan names in the description
-    # are separated by commas and spaces, so this is reliable.
-    # We avoid regex for performance on frequently-polled data.
-    return needle in haystack
+    names: set[str] = set()
+    for raw in _SEGMENT_SPLIT.split(description or ""):
+        segment = _normalize(raw)
+        if not segment:
+            continue
+        if segment.startswith("dan "):
+            segment = segment[4:]
+        names.add(segment)
+        padded = f" {segment}"
+        for lead_in in _LEAD_INS:
+            idx = padded.rfind(lead_in)
+            if idx != -1:
+                names.add(padded[idx + len(lead_in):])
+    return names

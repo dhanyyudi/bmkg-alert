@@ -25,14 +25,17 @@ from app.routes import (
     engine as engine_router,
     locations as locations_router,
     trial as trial_router,
+    weather as weather_router,
 )
-from app.routers import earthquake, health, nowcast, weather, wilayah
+from app.routers import earthquake, health, nowcast, wilayah
 
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper()),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+# httpx logs every request URL at INFO, and Telegram URLs embed the bot token.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -61,6 +64,15 @@ async def lifespan(app: FastAPI):
     bmkg_client = HttpBMKGClient(base_url=settings.bmkg_api_url)
     set_bmkg_client(bmkg_client)
     logger.info("BMKG client configured: %s", settings.bmkg_api_url)
+    # The client reads BMKG_API_URL from the environment; mirror it into the
+    # config table so the Settings page never shows a stale URL.
+    await db.execute(
+        """
+        INSERT INTO config (key, value, updated_at) VALUES ('bmkg_api_url', ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+        """,
+        (settings.bmkg_api_url,),
+    )
 
     # 4. Create and start AlertEngine
     from app.engine.state import StateManager
@@ -150,7 +162,6 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(nowcast.router, prefix="/api")
 app.include_router(earthquake.router, prefix="/api")
-app.include_router(weather.router, prefix="/api")
 app.include_router(wilayah.router, prefix="/api")
 
 # ── Alert management routes (routes/) ────────────────────────────────────────
@@ -162,6 +173,8 @@ app.include_router(config_router.router, prefix="/api/v1")
 app.include_router(activity_router.router, prefix="/api/v1")
 app.include_router(engine_router.router, prefix="/api/v1")
 app.include_router(trial_router.router, prefix="/api/v1")
+# Forecasts come from BMKG_API_URL: the bundled weather parser no longer matches BMKG's response format
+app.include_router(weather_router.router, prefix="/api/v1")
 
 
 # ── Admin endpoint ────────────────────────────────────────────────────────────

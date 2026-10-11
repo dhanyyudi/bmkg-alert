@@ -6,6 +6,7 @@ import json
 
 from fastapi import APIRouter, Depends
 
+from app.config import settings
 from app.database import get_database
 from app.dependencies import require_write_allowed
 from app.models import ConfigUpdate
@@ -40,9 +41,9 @@ async def update_config(body: ConfigUpdate):
     return {"data": config}
 
 
-@router.post("/export")
+@router.post("/export", dependencies=[Depends(require_write_allowed)])
 async def export_config():
-    """Export full configuration as JSON."""
+    """Export full configuration as JSON, channel credentials included."""
     db = get_database()
 
     config_rows = await db.fetch_all("SELECT key, value FROM config")
@@ -87,7 +88,7 @@ async def reset_config():
     db = get_database()
     defaults = {
         "setup_completed": "false",
-        "bmkg_api_url": "https://bmkg-restapi.vercel.app",
+        "bmkg_api_url": settings.bmkg_api_url,
         "poll_interval": "300",
         "severity_threshold": "all",
         "quiet_hours_enabled": "false",

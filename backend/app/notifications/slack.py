@@ -8,6 +8,7 @@ import httpx
 import structlog
 
 from app.models import MatchResult, WarningInfo
+from app.notifications.formatter import format_time, severity_label
 
 logger = structlog.get_logger()
 
@@ -44,7 +45,7 @@ class SlackSender:
     def _build_blocks(
         self, warning: WarningInfo, match: MatchResult, is_trial: bool
     ) -> dict:
-        emoji = SEVERITY_EMOJI.get(warning.severity, ":warning:")
+        emoji = SEVERITY_EMOJI.get(str(warning.severity), ":warning:")
         loc = match.location
 
         description = warning.description or warning.headline or ""
@@ -56,7 +57,7 @@ class SlackSender:
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": f"{emoji} Peringatan Cuaca — {warning.event}",
+                    "text": f"{emoji} Peringatan Cuaca: {warning.event}",
                     "emoji": True,
                 },
             },
@@ -64,9 +65,9 @@ class SlackSender:
                 "type": "section",
                 "fields": [
                     {"type": "mrkdwn", "text": f"*Lokasi:*\n{loc.label or loc.subdistrict_name}"},
-                    {"type": "mrkdwn", "text": f"*Tingkat:*\n{warning.severity}"},
-                    {"type": "mrkdwn", "text": f"*Berlaku:*\n{warning.effective or '-'}"},
-                    {"type": "mrkdwn", "text": f"*Hingga:*\n{warning.expires or '-'}"},
+                    {"type": "mrkdwn", "text": f"*Tingkat:*\n{severity_label(warning.severity)}"},
+                    {"type": "mrkdwn", "text": f"*Berlaku:*\n{format_time(warning.effective)}"},
+                    {"type": "mrkdwn", "text": f"*Hingga:*\n{format_time(warning.expires)}"},
                 ],
             },
         ]
@@ -89,7 +90,7 @@ class SlackSender:
         blocks.append({
             "type": "context",
             "elements": [
-                {"type": "mrkdwn", "text": f"Match: {match.match_type} — {match.matched_text}"},
+                {"type": "mrkdwn", "text": f"Cocok dengan {match.match_type} {match.matched_text}"},
                 {"type": "mrkdwn", "text": "Sumber: BMKG (bmkg.go.id) | BMKG Alert v1.0"},
             ],
         })
@@ -98,7 +99,7 @@ class SlackSender:
             blocks.append({
                 "type": "context",
                 "elements": [
-                    {"type": "mrkdwn", "text": ":hourglass: _Mode Trial — notifikasi aktif sementara._"},
+                    {"type": "mrkdwn", "text": ":hourglass: _Mode trial: notifikasi aktif sementara._"},
                 ],
             })
 

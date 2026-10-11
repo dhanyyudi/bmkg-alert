@@ -20,6 +20,7 @@ class BMKGClient(Protocol):
 
     async def get_nowcast_list(self) -> NowcastListResponse: ...
     async def get_nowcast_detail(self, code: str) -> NowcastDetailResponse: ...
+    async def get_weather(self, adm4_code: str) -> dict[str, Any]: ...
     async def search_wilayah(self, query: str) -> dict[str, Any]: ...
     async def get_provinces(self) -> dict[str, Any]: ...
     async def check_health(self) -> bool: ...
@@ -73,6 +74,13 @@ class HttpBMKGClient:
         inner = data.get("data", data)
         return NowcastDetailResponse(**inner)
 
+    async def get_weather(self, adm4_code: str) -> dict[str, Any]:
+        """Fetch the 3-day forecast for a kelurahan/desa (ADM4) code."""
+        client = await self._get_client()
+        response = await client.get(f"/v1/weather/{adm4_code}")
+        response.raise_for_status()
+        return response.json()
+
     async def search_wilayah(self, query: str) -> dict[str, Any]:
         """Search for Indonesian administrative areas."""
         client = await self._get_client()
@@ -91,7 +99,7 @@ class HttpBMKGClient:
         """Check if the BMKG API is reachable."""
         try:
             client = await self._get_client()
-            response = await client.get("/v1/nowcast")
+            response = await client.get("/health")
             return response.status_code == 200
         except (httpx.HTTPError, Exception):
             return False

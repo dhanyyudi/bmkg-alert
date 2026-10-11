@@ -27,7 +27,10 @@ class WebhookSender:
             logger.error("webhook_missing_url")
             return False
 
-        headers = channel_config.get("headers", {})
+        headers = dict(channel_config.get("headers") or {})
+        # The settings form stores the optional auth value as `secret`
+        if channel_config.get("secret"):
+            headers.setdefault("Authorization", channel_config["secret"])
         payload = self._build_payload(warning, match, is_trial)
         return await self._post(webhook_url, payload, headers)
 
@@ -45,15 +48,15 @@ class WebhookSender:
             "is_trial": is_trial,
             "warning": {
                 "event": warning.event,
-                "severity": warning.severity,
+                "severity": str(warning.severity),
                 "headline": warning.headline,
                 "description": warning.description,
-                "effective": warning.effective,
-                "expires": warning.expires,
+                "effective": warning.effective.isoformat() if warning.effective else None,
+                "expires": warning.expires.isoformat() if warning.expires else None,
                 "infographic_url": warning.infographic_url,
             },
             "location": {
-                "code": loc.adm_code,
+                "code": loc.subdistrict_code,
                 "label": loc.label,
                 "subdistrict": loc.subdistrict_name,
                 "district": loc.district_name,

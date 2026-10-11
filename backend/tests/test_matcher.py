@@ -1,7 +1,7 @@
 """Tests for the location matcher — pure functions, no I/O."""
 
 from app.engine.matcher import match_locations
-from app.models import Location, WarningArea, WarningInfo
+from app.models import Location, Area, WarningInfo
 
 
 def _make_location(
@@ -28,12 +28,20 @@ def _make_warning(
     description: str = "",
     area_names: list[str] | None = None,
 ) -> WarningInfo:
-    areas = [WarningArea(name=name) for name in (area_names or ["Jawa Tengah"])]
+    areas = [Area(name=name) for name in (area_names or ["Jawa Tengah"])]
     return WarningInfo(
+        identifier="test-warning",
         event="Hujan Lebat dan Petir",
         severity="Moderate",
+        urgency="Immediate",
+        certainty="Observed",
+        effective="2026-02-17T19:55:00+07:00",
+        expires="2026-02-17T23:00:00+07:00",
+        headline="Hujan Lebat disertai Petir di Jawa Tengah",
         description=description,
+        sender="BMKG",
         areas=areas,
+        is_expired=False,
     )
 
 

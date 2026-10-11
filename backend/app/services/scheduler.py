@@ -15,6 +15,7 @@ class SchedulerService:
     def __init__(self):
         self._tasks = []
         self._running = False
+        self._baseline_taken = False
         
     @property
     def running(self):
@@ -63,13 +64,16 @@ class SchedulerService:
                 current_id = eq.occurred_at.isoformat()
                 
                 if last_processed_id != current_id:
-                    logger.info(f"New earthquake detected: {eq.region} {eq.magnitude}")
-                    
                     # Store as processed
                     await cache.set("scheduler:last_processed_eq", current_id, ttl=86400) # 24h
-                    
-                    # Dispatch notification
-                    await notification_service.dispatch(eq)
+
+                    if self._baseline_taken:
+                        logger.info(f"New earthquake detected: {eq.region} {eq.magnitude}")
+                        await notification_service.dispatch(eq)
+
+                # Without Redis the marker is lost on restart, so the first reading
+                # after startup only sets the baseline and is never announced.
+                self._baseline_taken = True
                 
             except Exception as e:
                 logger.error(f"Error in earthquake poller: {e}")

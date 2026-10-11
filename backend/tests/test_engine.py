@@ -1,6 +1,7 @@
 """Tests for the alert engine — full poll cycle with mocked BMKG client."""
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -31,7 +32,13 @@ class TestAlertEnginePollCycle:
         detail_data = _load_fixture("nowcast_detail.json")
 
         client.get_nowcast_list.return_value = NowcastListResponse(**list_data)
-        client.get_nowcast_detail.return_value = NowcastDetailResponse(**detail_data)
+        # The API wraps the detail in {"data": ...}; the fixture dates are in the past,
+        # so push the expiry forward to keep the warnings active for the test
+        detail = NowcastDetailResponse(**detail_data["data"])
+        for warning in detail.warnings:
+            warning.is_expired = False
+            warning.expires = datetime.now(timezone.utc) + timedelta(hours=2)
+        client.get_nowcast_detail.return_value = detail
         return client
 
     @pytest.fixture

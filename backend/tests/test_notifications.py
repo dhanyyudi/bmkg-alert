@@ -1,11 +1,14 @@
 """Tests for the notification formatter."""
 
-from app.models import Location, MatchResult, WarningArea, WarningInfo
+from app.models import Location, MatchResult, Area, WarningInfo
 from app.notifications.formatter import _format_time, format_expiry_message, format_telegram_message
 
 
 def _make_warning() -> WarningInfo:
     return WarningInfo(
+        identifier="test-warning",
+        sender="BMKG",
+        is_expired=False,
         event="Hujan Lebat dan Petir",
         severity="Moderate",
         urgency="Immediate",
@@ -15,7 +18,7 @@ def _make_warning() -> WarningInfo:
         headline="Hujan Lebat disertai Petir di Jawa Tengah",
         description="Hujan lebat disertai petir akan terjadi di wilayah Alian.",
         infographic_url="https://example.com/infografis.jpg",
-        areas=[WarningArea(name="Jawa Tengah", polygon=[])],
+        areas=[Area(name="Jawa Tengah", polygon=[])],
     )
 
 
@@ -47,7 +50,7 @@ class TestTelegramFormatter:
         assert "Alian" in msg
         assert "Kebumen" in msg
         assert "Jawa Tengah" in msg
-        assert "Moderate" in msg
+        assert "Sedang" in msg
         assert "🟡" in msg  # Moderate severity emoji
 
     def test_severity_emojis(self):
@@ -66,7 +69,7 @@ class TestTelegramFormatter:
     def test_trial_mode_footer(self):
         """Trial mode adds expiry notice."""
         msg = format_telegram_message(_make_warning(), _make_match(), is_trial=True)
-        assert "Mode Trial" in msg
+        assert "Mode trial" in msg
 
     def test_no_trial_footer_by_default(self):
         """Normal mode doesn't show trial footer."""

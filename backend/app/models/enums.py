@@ -3,7 +3,14 @@
 from enum import Enum
 
 
-class Severity(str, Enum):
+class _ValueStrEnum(str, Enum):
+    """str-backed enum whose str()/format() is its value, as StrEnum does."""
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+class Severity(_ValueStrEnum):
     """CAP severity levels."""
     EXTREME = "Extreme"
     SEVERE = "Severe"
@@ -12,7 +19,7 @@ class Severity(str, Enum):
     UNKNOWN = "Unknown"
 
 
-class Urgency(str, Enum):
+class Urgency(_ValueStrEnum):
     """CAP urgency levels."""
     IMMEDIATE = "Immediate"
     EXPECTED = "Expected"
@@ -21,7 +28,7 @@ class Urgency(str, Enum):
     UNKNOWN = "Unknown"
 
 
-class Certainty(str, Enum):
+class Certainty(_ValueStrEnum):
     """CAP certainty levels."""
     OBSERVED = "Observed"
     LIKELY = "Likely"

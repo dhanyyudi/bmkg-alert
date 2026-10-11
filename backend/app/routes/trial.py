@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from html import escape
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/trial", tags=["trial"])
 
 TRIAL_DURATION_HOURS = 24
 MAX_REGISTRATIONS_PER_IP = 5
+SEVERITY_LEVELS = {"all", "minor", "moderate", "severe", "extreme"}
 
 
 # ── Models ────────────────────────────────────────────────────────────────────
@@ -64,6 +66,9 @@ async def register_trial(body: TrialRegister, request: Request):
 
     if not body.location_code.strip():
         raise HTTPException(status_code=400, detail="Kode lokasi tidak boleh kosong")
+
+    if body.severity_min not in SEVERITY_LEVELS:
+        raise HTTPException(status_code=400, detail="Tingkat peringatan tidak dikenal")
 
     # Check for existing active trial for this chat_id
     existing = await db.fetch_one(
@@ -125,8 +130,8 @@ async def register_trial(body: TrialRegister, request: Request):
 
     confirm_msg = (
         "<b>Trial BMKG Alert Aktif!</b>\n\n"
-        f"Lokasi: {location_label}\n"
-        f"Severity: {body.severity_min}\n"
+        f"Lokasi: {escape(location_label)}\n"
+        f"Tingkat minimum: {escape(body.severity_min)}\n"
         f"Berlaku: {TRIAL_DURATION_HOURS} jam\n\n"
         "Anda akan menerima notifikasi peringatan cuaca BMKG "
         "untuk lokasi ini selama masa trial.\n\n"
@@ -247,7 +252,7 @@ async def get_bot_info():
 
 
 @router.post("/{trial_id}/test-message")
-async def send_test_message(trial_id: int):
+async def send_test_message(trial_id: int, chat_id: str = Query(..., description="Chat ID pemilik trial")):
     """Send a test Telegram message so the user can verify the bot can reach them."""
     db = get_database()
 
@@ -261,8 +266,12 @@ async def send_test_message(trial_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Trial tidak ditemukan atau sudah berakhir")
 
+    # Trial ids are sequential; without this anyone could make the bot message other subscribers
+    if row["telegram_chat_id"] != chat_id.strip():
+        raise HTTPException(status_code=403, detail="Tidak diizinkan mengirim pesan untuk trial milik pengguna lain")
+
     test_msg = (
-        "✅ <b>Pesan Tes — BMKG Alert</b>\n\n"
+        "✅ <b>Pesan tes BMKG Alert</b>\n\n"
         "Bot berhasil menghubungi Anda! Anda akan menerima notifikasi peringatan "
         "cuaca BMKG secara otomatis ketika ada peringatan untuk lokasi yang dipilih.\n\n"
         "<i>BMKG Alert System</i>"

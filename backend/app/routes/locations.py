@@ -103,5 +103,10 @@ async def delete_location(location_id: int):
     row = await db.fetch_one("SELECT * FROM locations WHERE id = ?", (location_id,))
     if not row:
         raise HTTPException(status_code=404, detail="Location not found")
+    # Alert history outlives the location: detach it first, or the foreign key blocks the delete
+    await db.execute(
+        "UPDATE alerts SET matched_location_id = NULL WHERE matched_location_id = ?",
+        (location_id,),
+    )
     await db.execute("DELETE FROM locations WHERE id = ?", (location_id,))
     return {"status": "deleted", "id": location_id}

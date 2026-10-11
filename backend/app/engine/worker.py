@@ -6,7 +6,7 @@ Runs as an asyncio.Task in the FastAPI lifespan. On each cycle:
 3. Match against monitored locations
 4. Deduplicate (skip if code+location already exists)
 5. Store new alerts and send notifications
-6. Mark expired alerts and send 'all clear'
+6. Mark expired alerts
 7. Log activity
 """
 
@@ -15,20 +15,30 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, timezone
+from html import escape
 from typing import Any
 
 import structlog
 
 from app.config import settings
 from app.engine.bmkg_client import BMKGClient
-from app.engine.matcher import match_locations
+from app.engine.matcher import match_locations, name_listed
 from app.engine.state import StateManager
+from app.notifications.formatter import format_time, severity_label
 from app.notifications.telegram import TelegramSender
 
 logger = structlog.get_logger()
 
-# Severity ordering for trial filtering
-_SEVERITY_ORDER = {"minor": 0, "moderate": 1, "severe": 2, "extreme": 3}
+# Severity floor: "all" (or an unknown level) lets everything through
+_SEVERITY_ORDER = {"all": 0, "minor": 0, "moderate": 1, "severe": 2, "extreme": 3}
+
+DEFAULT_POLL_INTERVAL = 300
+MIN_POLL_INTERVAL = 60
+
+
+def _has_expired(warning: Any, now: datetime) -> bool:
+    """A warning is over once its own `expires` passes; `is_expired` from a cached upstream response can lag."""
+    return bool(warning.is_expired) or warning.expires <= now
 
 
 class AlertEngine:
@@ -111,12 +121,10 @@ class AlertEngine:
                 await self._run_poll_cycle()
             except Exception as exc:
                 logger.error("poll_cycle_error", error=str(exc), exc_info=True)
-                self._last_poll_result = f"error: {exc}"
+                self._last_poll_result = f"Galat: {exc}"
 
             # Wait for the configured interval or until stopped
-            poll_interval = int(
-                await self._state.get_config_value("poll_interval", "300")
-            )
+            poll_interval = await self._poll_interval()
             try:
                 await asyncio.wait_for(
                     self._stop_event.wait(), timeout=poll_interval
@@ -124,8 +132,17 @@ class AlertEngine:
                 # If we get here, stop was called
                 break
             except asyncio.TimeoutError:
-                # Normal timeout — continue polling
+                # Normal timeout: poll again
                 continue
+
+    async def _poll_interval(self) -> int:
+        """Configured poll interval in seconds; a bad or tiny value must not stall or spin the loop."""
+        raw = await self._state.get_config_value("poll_interval", str(DEFAULT_POLL_INTERVAL))
+        try:
+            return max(MIN_POLL_INTERVAL, int(raw))
+        except (TypeError, ValueError):
+            logger.warning("invalid_poll_interval", value=raw)
+            return DEFAULT_POLL_INTERVAL
 
     async def _run_poll_cycle(self) -> dict[str, Any]:
         """Execute a single poll cycle."""
@@ -151,32 +168,26 @@ class AlertEngine:
             nowcast = await self._bmkg.get_nowcast_list()
             summary["warnings_fetched"] = len(nowcast.data)
 
-            if not nowcast.data:
-                self._last_poll_result = "no warnings"
-                logger.info("poll_cycle_no_warnings")
-                await self._state.log_activity(
-                    "poll_completed", "No active warnings found"
-                )
-                return summary
-
-            # 2. Get monitored locations
+            # 2. Monitored locations, channels and the severity floor
             locations = await self._state.get_enabled_locations()
-            if not locations:
-                self._last_poll_result = "no locations configured"
-                logger.info("poll_cycle_no_locations")
-                return summary
-
-            # 3. Get enabled channels
             channels = await self._state.get_enabled_channels()
+            min_severity = _SEVERITY_ORDER.get(
+                (await self._state.get_config_value("severity_threshold", "all")).lower(), 0
+            )
 
-            # 4. For each warning, get detail and match
+            # 3. Fetch each warning's detail once; trials reuse it because the
+            #    upstream API rate-limits detail requests
+            details: dict[str, Any] = {}
             for item in nowcast.data:
                 try:
                     detail = await self._bmkg.get_nowcast_detail(item.code)
+                    details[item.code] = detail
                     summary["details_fetched"] += 1
 
                     for warning in detail.warnings:
-                        if warning.is_expired:
+                        if _has_expired(warning, start_time):
+                            continue
+                        if _SEVERITY_ORDER.get(str(warning.severity).lower(), 0) < min_severity:
                             continue
 
                         matches = match_locations(warning, locations)
@@ -224,25 +235,30 @@ class AlertEngine:
                     )
                     summary["errors"].append(f"{item.code}: {detail_err}")
 
-            # 5. Mark expired alerts
+            # 4. Mark expired alerts
             expired = await self._state.mark_expired_alerts()
             summary["expired_alerts"] = len(expired)
 
-            # 6. Send trial notifications
-            summary["trial_notifications"] = await self._process_trials(nowcast, summary)
+            # 5. Send trial notifications
+            summary["trial_notifications"] = await self._process_trials(details, start_time)
 
-            # 7. Expire trial subscriptions
+            # 6. Expire trial subscriptions
             summary["trials_expired"] = await self._expire_trials()
 
             # Build result
             duration_ms = int(
                 (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             )
-            self._last_poll_result = (
-                f"OK: {summary['new_alerts']} new, "
-                f"{summary['duplicates_skipped']} dupes, "
-                f"{summary['expired_alerts']} expired"
-            )
+            if not nowcast.data:
+                self._last_poll_result = "BMKG tidak mengeluarkan peringatan"
+            elif not locations:
+                self._last_poll_result = "Belum ada lokasi yang dipantau"
+            else:
+                self._last_poll_result = (
+                    f"{summary['new_alerts']} peringatan baru, "
+                    f"{summary['duplicates_skipped']} sudah tercatat, "
+                    f"{summary['expired_alerts']} berakhir"
+                )
 
             logger.info(
                 "poll_cycle_complete",
@@ -258,7 +274,7 @@ class AlertEngine:
             )
 
         except Exception as exc:
-            self._last_poll_result = f"error: {exc}"
+            self._last_poll_result = f"Galat: {exc}"
             logger.error("poll_cycle_error", error=str(exc), exc_info=True)
             await self._state.log_activity(
                 "poll_error", f"Poll cycle failed: {exc}"
@@ -266,8 +282,8 @@ class AlertEngine:
 
         return summary
 
-    async def _process_trials(self, nowcast: Any, summary: dict) -> int:
-        """Send Telegram notifications to matching trial subscribers."""
+    async def _process_trials(self, details: dict[str, Any], now: datetime) -> int:
+        """Send Telegram notifications to matching trial subscribers, once per warning."""
         bot_token = settings.telegram_bot_token
         if not bot_token:
             return 0
@@ -279,39 +295,30 @@ class AlertEngine:
         sent_count = 0
         telegram = TelegramSender()
 
-        for item in nowcast.data:
-            try:
-                detail = await self._bmkg.get_nowcast_detail(item.code)
-            except Exception:
-                continue
-
+        for code, detail in details.items():
             for warning in detail.warnings:
-                if warning.is_expired:
+                if _has_expired(warning, now):
                     continue
 
-                description_lower = warning.description.lower()
                 area_names_lower = {a.name.lower() for a in warning.areas}
-                warn_sev = _SEVERITY_ORDER.get(warning.severity.lower(), 0)
+                warn_sev = _SEVERITY_ORDER.get(str(warning.severity).lower(), 0)
 
                 for trial in trials:
                     # Severity filter
                     trial_threshold = trial.get("severity_threshold", "all")
-                    if trial_threshold != "all":
-                        trial_sev = _SEVERITY_ORDER.get(trial_threshold.lower(), 0)
-                        if warn_sev < trial_sev:
-                            continue
+                    if warn_sev < _SEVERITY_ORDER.get(trial_threshold.lower(), 0):
+                        continue
 
                     # Location matching
-                    sub_name = trial.get("subdistrict_name", "").lower()
+                    sub_name = trial.get("subdistrict_name", "")
                     dist_name = trial.get("district_name", "").lower()
-                    matched = False
-
-                    if sub_name and sub_name in description_lower:
-                        matched = True
-                    elif dist_name and any(dist_name in a for a in area_names_lower):
-                        matched = True
-
+                    matched = name_listed(sub_name, warning.description) or bool(
+                        dist_name and any(dist_name in a for a in area_names_lower)
+                    )
                     if not matched:
+                        continue
+
+                    if not await self._state.claim_trial_notification(trial["id"], code):
                         continue
 
                     # Build and send message
@@ -320,13 +327,13 @@ class AlertEngine:
                         loc_label += f", {trial['district_name']}"
 
                     msg = (
-                        f"<b>Peringatan Cuaca — {warning.event}</b>\n"
-                        f"Severity: {warning.severity}\n\n"
-                        f"Lokasi Anda: {loc_label}\n"
-                        f"Berlaku: {warning.effective or '-'}\n"
-                        f"Hingga: {warning.expires or '-'}\n\n"
-                        f"{(warning.description or '')[:300]}\n\n"
-                        f"<i>BMKG Alert — Trial Mode</i>"
+                        f"<b>Peringatan Cuaca: {escape(warning.event)}</b>\n"
+                        f"Tingkat: {severity_label(warning.severity)}\n\n"
+                        f"Lokasi Anda: {escape(loc_label)}\n"
+                        f"Berlaku: {format_time(warning.effective)}\n"
+                        f"Hingga: {format_time(warning.expires)}\n\n"
+                        f"{escape((warning.description or '')[:300])}\n\n"
+                        f"<i>BMKG Alert, mode trial</i>"
                     )
 
                     try:

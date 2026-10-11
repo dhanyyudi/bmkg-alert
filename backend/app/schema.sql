@@ -85,6 +85,14 @@ CREATE TABLE IF NOT EXISTS trial_subscriptions (
     ip_address TEXT
 );
 
+-- Which warning each trial subscriber has already been told about
+CREATE TABLE IF NOT EXISTS trial_notifications (
+    trial_id INTEGER NOT NULL REFERENCES trial_subscriptions(id),
+    alert_code TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (trial_id, alert_code)
+);
+
 -- Activity log
 CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,7 +113,7 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_alert ON alert_deliveries(alert_id);
 
 -- Default config values
 INSERT OR IGNORE INTO config (key, value) VALUES ('setup_completed', 'false');
-INSERT OR IGNORE INTO config (key, value) VALUES ('bmkg_api_url', 'https://bmkg-restapi.vercel.app');
+INSERT OR IGNORE INTO config (key, value) VALUES ('bmkg_api_url', 'https://bmkg-api.dhanypedia.com');
 INSERT OR IGNORE INTO config (key, value) VALUES ('poll_interval', '300');
 INSERT OR IGNORE INTO config (key, value) VALUES ('severity_threshold', 'all');
 INSERT OR IGNORE INTO config (key, value) VALUES ('quiet_hours_enabled', 'false');

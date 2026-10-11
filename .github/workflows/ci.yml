@@ -33,6 +33,12 @@ jobs:
       - name: Type check (basic import test)
         run: python -c "from app.main import app; print('Import OK')"
 
+      # The bundled BMKG API tests (earthquake/weather/wilayah/integration) are stale and not run here yet
+      - name: Alert pipeline tests
+        run: |
+          pip install pytest pytest-asyncio
+          pytest tests/test_engine.py tests/test_matcher.py tests/test_notifications.py tests/test_alert_regressions.py
+
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest

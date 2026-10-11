@@ -8,6 +8,7 @@ import httpx
 import structlog
 
 from app.models import MatchResult, WarningInfo
+from app.notifications.formatter import format_time, severity_label
 
 logger = structlog.get_logger()
 
@@ -51,9 +52,9 @@ class DiscordSender:
     def _build_embed(
         self, warning: WarningInfo, match: MatchResult, is_trial: bool
     ) -> dict:
-        emoji = SEVERITY_EMOJI.get(warning.severity, "\u26a0\ufe0f")
+        emoji = SEVERITY_EMOJI.get(str(warning.severity), "\u26a0\ufe0f")
         loc = match.location
-        color = SEVERITY_COLOR.get(warning.severity, 0x6B7280)
+        color = SEVERITY_COLOR.get(str(warning.severity), 0x6B7280)
 
         description = warning.description or warning.headline or ""
         if len(description) > 300:
@@ -61,22 +62,22 @@ class DiscordSender:
 
         fields = [
             {"name": "Lokasi Terpantau", "value": loc.label or loc.subdistrict_name, "inline": True},
-            {"name": "Tingkat", "value": warning.severity, "inline": True},
-            {"name": "Berlaku", "value": warning.effective or "-", "inline": True},
-            {"name": "Hingga", "value": warning.expires or "-", "inline": True},
+            {"name": "Tingkat", "value": severity_label(warning.severity), "inline": True},
+            {"name": "Berlaku", "value": format_time(warning.effective), "inline": True},
+            {"name": "Hingga", "value": format_time(warning.expires), "inline": True},
         ]
 
         if match.matched_text:
             fields.append(
-                {"name": "Match", "value": f"{match.match_type} — {match.matched_text}", "inline": False}
+                {"name": "Cocok dengan", "value": f"{match.match_type} {match.matched_text}", "inline": False}
             )
 
         embed: dict[str, Any] = {
-            "title": f"{emoji} Peringatan Cuaca — {warning.event}",
+            "title": f"{emoji} Peringatan Cuaca: {warning.event}",
             "description": description,
             "color": color,
             "fields": fields,
-            "footer": {"text": "BMKG Alert System v1.0 | Sumber: BMKG (bmkg.go.id)"},
+            "footer": {"text": "Sumber: BMKG (bmkg.go.id)"},
         }
 
         if warning.infographic_url:
@@ -85,7 +86,7 @@ class DiscordSender:
         payload: dict[str, Any] = {"embeds": [embed]}
 
         if is_trial:
-            payload["content"] = "\u23f3 *Mode Trial — notifikasi aktif sementara.*"
+            payload["content"] = "\u23f3 *Mode trial: notifikasi aktif sementara.*"
 
         return payload
 

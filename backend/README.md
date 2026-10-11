@@ -14,7 +14,7 @@
 
 Free REST API for Indonesian weather forecasts, earthquake data, weather warnings, and region lookup from BMKG.
 
-**🌐 Demo:** [https://bmkg-restapi.vercel.app](https://bmkg-restapi.vercel.app)
+**🌐 Demo:** [https://bmkg-api.dhanypedia.com](https://bmkg-api.dhanypedia.com)
 
 ### ⚠️ Important Notice
 
@@ -41,19 +41,19 @@ This is a **demo/public instance** with rate limits (30 requests/minute) to ensu
 
 ```bash
 # Latest earthquake
-curl https://bmkg-restapi.vercel.app/v1/earthquake/latest
+curl https://bmkg-api.dhanypedia.com/v1/earthquake/latest
 
 # Weather forecast for Tebet Timur, Jakarta
-curl https://bmkg-restapi.vercel.app/v1/weather/31.74.01.1001
+curl https://bmkg-api.dhanypedia.com/v1/weather/31.74.01.1001
 
 # Current weather
-curl https://bmkg-restapi.vercel.app/v1/weather/31.74.01.1001/current
+curl https://bmkg-api.dhanypedia.com/v1/weather/31.74.01.1001/current
 
 # Active weather warnings
-curl https://bmkg-restapi.vercel.app/v1/nowcast
+curl https://bmkg-api.dhanypedia.com/v1/nowcast
 
 # Search regions
-curl https://bmkg-restapi.vercel.app/v1/wilayah/search?q=tebet
+curl https://bmkg-api.dhanypedia.com/v1/wilayah/search?q=tebet
 ```
 
 ```
@@ -105,7 +105,7 @@ BMKG_EARTHQUAKE_BASE_URL=https://data.bmkg.go.id/DataMKG/TEWS
 | `GET /v1/wilayah/villages?subdistrict_code=` | List villages |
 | `GET /v1/wilayah/search?q={query}` | Search regions |
 
-**Full documentation:** [https://bmkg-restapi.vercel.app/docs](https://bmkg-restapi.vercel.app/docs)
+**Full documentation:** [https://bmkg-api.dhanypedia.com/docs](https://bmkg-api.dhanypedia.com/docs)
 
 ### Self-Hosting
 
@@ -135,11 +135,11 @@ make dev     # starts server on http://localhost:8099
 
 Deploy to Vercel with one click — the `api/index.py` and `vercel.json` are pre-configured.
 
-See [Self-Hosting Guide](https://bmkg-restapi.vercel.app/self-host.html) for detailed instructions.
+See [Self-Hosting Guide](https://bmkg-api.dhanypedia.com/self-host.html) for detailed instructions.
 
 ### Code Examples
 
-Available on the [landing page](https://bmkg-restapi.vercel.app) for: **cURL**, **JavaScript**, **Python**, **Go**, **PHP**, **Ruby**, and **Dart (Flutter)**.
+Available on the [landing page](https://bmkg-api.dhanypedia.com) for: **cURL**, **JavaScript**, **Python**, **Go**, **PHP**, **Ruby**, and **Dart (Flutter)**.
 
 ---
 
@@ -148,7 +148,7 @@ Available on the [landing page](https://bmkg-restapi.vercel.app) for: **cURL**, 
 
 API REST gratis untuk prakiraan cuaca, data gempa bumi, peringatan cuaca, dan pencarian wilayah Indonesia dari BMKG.
 
-**🌐 Demo:** [https://bmkg-restapi.vercel.app](https://bmkg-restapi.vercel.app)
+**🌐 Demo:** [https://bmkg-api.dhanypedia.com](https://bmkg-api.dhanypedia.com)
 
 ### ⚠️ Pemberitahuan Penting
 
@@ -173,19 +173,19 @@ Ini adalah **instance demo/publik** dengan batasan rate limit (30 request/menit)
 
 ```bash
 # Gempa terbaru
-curl https://bmkg-restapi.vercel.app/v1/earthquake/latest
+curl https://bmkg-api.dhanypedia.com/v1/earthquake/latest
 
 # Prakiraan cuaca Tebet Timur, Jakarta
-curl https://bmkg-restapi.vercel.app/v1/weather/31.74.01.1001
+curl https://bmkg-api.dhanypedia.com/v1/weather/31.74.01.1001
 
 # Cuaca saat ini
-curl https://bmkg-restapi.vercel.app/v1/weather/31.74.01.1001/current
+curl https://bmkg-api.dhanypedia.com/v1/weather/31.74.01.1001/current
 
 # Peringatan cuaca aktif
-curl https://bmkg-restapi.vercel.app/v1/nowcast
+curl https://bmkg-api.dhanypedia.com/v1/nowcast
 
 # Cari wilayah
-curl https://bmkg-restapi.vercel.app/v1/wilayah/search?q=wiradesa
+curl https://bmkg-api.dhanypedia.com/v1/wilayah/search?q=wiradesa
 ```
 
 ### Endpoint API
@@ -220,7 +220,7 @@ curl https://bmkg-restapi.vercel.app/v1/wilayah/search?q=wiradesa
 | `GET /v1/wilayah/villages?subdistrict_code=` | Daftar desa/kelurahan |
 | `GET /v1/wilayah/search?q={query}` | Cari wilayah |
 
-**Dokumentasi lengkap:** [https://bmkg-restapi.vercel.app/docs](https://bmkg-restapi.vercel.app/docs)
+**Dokumentasi lengkap:** [https://bmkg-api.dhanypedia.com/docs](https://bmkg-api.dhanypedia.com/docs)
 
 ### Self-Hosting
 
@@ -250,11 +250,11 @@ make dev     # jalankan server di http://localhost:8099
 
 Deploy ke Vercel — `api/index.py` dan `vercel.json` sudah dikonfigurasi.
 
-Lihat [Panduan Self-Hosting](https://bmkg-restapi.vercel.app/self-host.html) untuk detail.
+Lihat [Panduan Self-Hosting](https://bmkg-api.dhanypedia.com/self-host.html) untuk detail.
 
 ### Contoh Kode
 
-Tersedia di [halaman utama](https://bmkg-restapi.vercel.app) untuk: **cURL**, **JavaScript**, **Python**, **Go**, **PHP**, **Ruby**, dan **Dart (Flutter)**.
+Tersedia di [halaman utama](https://bmkg-api.dhanypedia.com) untuk: **cURL**, **JavaScript**, **Python**, **Go**, **PHP**, **Ruby**, dan **Dart (Flutter)**.
 
 ---
 

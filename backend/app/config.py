@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     # Alert system (bmkg-alert)
     db_path: str = Field(default="data/bmkg_alert.db", alias="DB_PATH")
-    bmkg_api_url: str = Field(default="https://bmkg-restapi.vercel.app", alias="BMKG_API_URL")
+    bmkg_api_url: str = Field(default="https://bmkg-api.dhanypedia.com", alias="BMKG_API_URL")
     demo_mode: bool = Field(default=False, alias="DEMO_MODE")
 
     # Notifications

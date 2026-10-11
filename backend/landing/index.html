@@ -190,7 +190,7 @@
           </div>
           <pre
             class="overflow-x-auto"
-          ><code id="hero-code" class="language-bash text-sm">curl https://bmkg-restapi.vercel.app/v1/nowcast</code></pre>
+          ><code id="hero-code" class="language-bash text-sm">curl https://bmkg-api.dhanypedia.com/v1/nowcast</code></pre>
         </div>
 
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
@@ -905,11 +905,11 @@
             <pre
               x-show="activeTab === 'curl'"
               class="language-bash"
-            ><code>curl https://bmkg-restapi.vercel.app/v1/earthquake/latest</code></pre>
+            ><code>curl https://bmkg-api.dhanypedia.com/v1/earthquake/latest</code></pre>
             <pre
               x-show="activeTab === 'js'"
               class="language-javascript"
-            ><code>fetch('https://bmkg-restapi.vercel.app/v1/earthquake/latest')
+            ><code>fetch('https://bmkg-api.dhanypedia.com/v1/earthquake/latest')
   .then(r => r.json())
   .then(data => console.log(data));</code></pre>
             <pre
@@ -918,7 +918,7 @@
             ><code>import requests
 
 response = requests.get(
-    'https://bmkg-restapi.vercel.app/v1/earthquake/latest'
+    'https://bmkg-api.dhanypedia.com/v1/earthquake/latest'
 )
 data = response.json()
 print(data)</code></pre>
@@ -935,7 +935,7 @@ import (
 
 func main() {
     resp, err := http.Get(
-        "https://bmkg-restapi.vercel.app/v1/earthquake/latest",
+        "https://bmkg-api.dhanypedia.com/v1/earthquake/latest",
     )
     if err != nil {
         panic(err)
@@ -950,7 +950,7 @@ func main() {
               x-show="activeTab === 'php'"
               class="language-php"
             ><code>$response = file_get_contents(
-    'https://bmkg-restapi.vercel.app/v1/earthquake/latest'
+    'https://bmkg-api.dhanypedia.com/v1/earthquake/latest'
 );
 $data = json_decode($response, true);
 print_r($data);</code></pre>
@@ -960,7 +960,7 @@ print_r($data);</code></pre>
             ><code>require 'net/http'
 require 'json'
 
-uri = URI('https://bmkg-restapi.vercel.app/v1/earthquake/latest')
+uri = URI('https://bmkg-api.dhanypedia.com/v1/earthquake/latest')
 response = Net::HTTP.get(uri)
 data = JSON.parse(response)
 puts data</code></pre>
@@ -972,7 +972,7 @@ import 'package:http/http.dart' as http;
 
 void main() async {
   final response = await http.get(
-    Uri.parse('https://bmkg-restapi.vercel.app/v1/earthquake/latest'),
+    Uri.parse('https://bmkg-api.dhanypedia.com/v1/earthquake/latest'),
   );
   final data = jsonDecode(response.body);
   print(data);
@@ -1524,7 +1524,7 @@ rings.forEach((ring, i) =&gt; {
           },
 
           buildUrl() {
-            const base = "https://bmkg-restapi.vercel.app/v1";
+            const base = "https://bmkg-api.dhanypedia.com/v1";
             switch (this.selectedEndpoint) {
               case "earthquake-latest":
                 return `${base}/earthquake/latest`;
@@ -1564,7 +1564,7 @@ rings.forEach((ring, i) =&gt; {
 
             try {
               const url = this.buildUrl().replace(
-                "https://bmkg-restapi.vercel.app",
+                "https://bmkg-api.dhanypedia.com",
                 "",
               );
               const res = await fetch(url);

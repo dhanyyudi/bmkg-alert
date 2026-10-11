@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -17,6 +18,23 @@ from app.notifications.webhook import WebhookSender
 
 router = APIRouter(prefix="/channels", tags=["channels"])
 
+# Credentials never leave the API in full: these routes are readable without
+# auth (including on a public demo), and senders read the stored row directly.
+_SECRET_KEYS = ("bot_token", "webhook_url", "smtp_password", "secret", "headers")
+_MASK = "••••••••"
+
+
+def _public_view(row: Any) -> dict:
+    """Return a channel row with its config parsed and credentials masked."""
+    channel = dict(row)
+    if isinstance(channel.get("config"), str):
+        channel["config"] = json.loads(channel["config"])
+    masked = {}
+    for key, value in (channel.get("config") or {}).items():
+        masked[key] = _MASK if key in _SECRET_KEYS and value else value
+    channel["config"] = masked
+    return channel
+
 
 @router.get("")
 async def list_channels():
@@ -25,13 +43,7 @@ async def list_channels():
     rows = await db.fetch_all(
         "SELECT * FROM notification_channels ORDER BY created_at DESC"
     )
-    result = []
-    for row in rows:
-        channel = dict(row)
-        if isinstance(channel.get("config"), str):
-            channel["config"] = json.loads(channel["config"])
-        result.append(channel)
-    return {"data": result}
+    return {"data": [_public_view(row) for row in rows]}
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_write_allowed)])
@@ -51,9 +63,7 @@ async def create_channel(body: ChannelCreate):
     row = await db.fetch_one(
         "SELECT * FROM notification_channels WHERE id = ?", (channel_id,)
     )
-    channel = dict(row)
-    channel["config"] = json.loads(channel["config"])
-    return {"data": channel}
+    return {"data": _public_view(row)}
 
 
 @router.get("/{channel_id}")
@@ -65,10 +75,7 @@ async def get_channel(channel_id: int):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Channel not found")
-    channel = dict(row)
-    if isinstance(channel.get("config"), str):
-        channel["config"] = json.loads(channel["config"])
-    return {"data": channel}
+    return {"data": _public_view(row)}
 
 
 @router.patch("/{channel_id}", dependencies=[Depends(require_write_allowed)])
@@ -102,10 +109,7 @@ async def update_channel(channel_id: int, body: ChannelUpdate):
     row = await db.fetch_one(
         "SELECT * FROM notification_channels WHERE id = ?", (channel_id,)
     )
-    channel = dict(row)
-    if isinstance(channel.get("config"), str):
-        channel["config"] = json.loads(channel["config"])
-    return {"data": channel}
+    return {"data": _public_view(row)}
 
 
 @router.delete("/{channel_id}", dependencies=[Depends(require_write_allowed)])
@@ -117,6 +121,11 @@ async def delete_channel(channel_id: int):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Channel not found")
+    # Delivery history outlives the channel: detach it first, or the foreign key blocks the delete
+    await db.execute(
+        "UPDATE alert_deliveries SET channel_id = NULL WHERE channel_id = ?",
+        (channel_id,),
+    )
     await db.execute(
         "DELETE FROM notification_channels WHERE id = ?", (channel_id,)
     )
@@ -145,7 +154,7 @@ async def test_channel(channel_id: int):
         "Test Notifikasi BMKG Alert\n\n"
         "Ini adalah pesan test. Jika Anda melihat pesan ini, "
         "konfigurasi berhasil!\n\n"
-        "BMKG Alert System v1.0"
+        "BMKG Alert"
     )
 
     if channel_type == "telegram":
@@ -154,7 +163,7 @@ async def test_channel(channel_id: int):
             "\U0001f9ea <b>Test Notifikasi BMKG Alert</b>\n\n"
             "Ini adalah pesan test. Jika Anda melihat pesan ini, "
             "konfigurasi Telegram berhasil!\n\n"
-            "\U0001f4e1 BMKG Alert System v1.0"
+            "\U0001f4e1 BMKG Alert"
         )
         success = await sender.send_raw(
             bot_token=config.get("bot_token", ""),
@@ -186,7 +195,10 @@ async def test_channel(channel_id: int):
         success = await sender.send_raw(
             webhook_url=config.get("webhook_url", ""),
             payload={"type": "test", "source": "bmkg-alert", "message": test_text},
-            headers=config.get("headers", {}),
+            headers={
+                **(config.get("headers") or {}),
+                **({"Authorization": config["secret"]} if config.get("secret") else {}),
+            },
         )
     else:
         raise HTTPException(

@@ -13,6 +13,24 @@ from app.models import Alert, Location, MatchResult, WarningInfo
 logger = structlog.get_logger()
 
 
+def _to_iso(value: datetime | str | None) -> str | None:
+    """Store timestamps as ISO 8601 text instead of relying on sqlite3's deprecated datetime adapter."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    """Parse a stored timestamp ("T" or space separated); naive values are UTC."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
 class StateManager:
     """Manages alert state: dedup, insert, expiry, and active alert tracking."""
 
@@ -57,8 +75,8 @@ class StateManager:
                 warning.certainty,
                 warning.headline,
                 warning.description,
-                warning.effective,
-                warning.expires,
+                _to_iso(warning.effective),
+                _to_iso(warning.expires),
                 warning.infographic_url,
                 polygon_json,
                 match.location.id,
@@ -83,22 +101,20 @@ class StateManager:
 
         Returns list of newly-expired alerts for 'all clear' notifications.
         """
-        now_utc = datetime.now(timezone.utc).isoformat()
+        now_utc = datetime.now(timezone.utc)
 
-        # Find alerts that should be expired
+        # `expires` keeps BMKG's local offset (+07:00/+08:00/+09:00), so it has to be
+        # parsed and compared as an instant; a string comparison in SQL gets it wrong.
         rows = await self._db.fetch_all(
-            """
-            SELECT * FROM alerts
-            WHERE status = 'active'
-              AND expires != ''
-              AND expires < ?
-            """,
-            (now_utc,),
+            "SELECT * FROM alerts WHERE status = 'active' AND expires IS NOT NULL AND expires != ''"
         )
 
         expired_alerts: list[Alert] = []
         for row in rows:
             alert = Alert(**dict(row))
+            expires_at = _parse_timestamp(alert.expires)
+            if expires_at is None or expires_at > now_utc:
+                continue
             expired_alerts.append(alert)
 
             await self._db.execute(
@@ -187,6 +203,18 @@ class StateManager:
             """
         )
         return [dict(row) for row in rows]
+
+    async def claim_trial_notification(self, trial_id: int, alert_code: str) -> bool:
+        """Record that a trial is being notified about a warning.
+
+        Returns False when that pair was already recorded, so each subscriber
+        hears about a given warning once instead of on every poll cycle.
+        """
+        cursor = await self._db.execute(
+            "INSERT OR IGNORE INTO trial_notifications (trial_id, alert_code) VALUES (?, ?)",
+            (trial_id, alert_code),
+        )
+        return cursor.rowcount > 0
 
     async def expire_trials(self) -> list[dict]:
         """Find expired trials that haven't been notified yet.
