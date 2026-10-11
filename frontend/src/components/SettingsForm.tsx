@@ -4,12 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, Plus, Save, RefreshCw, Send, Download, Upload, Info } from 'lucide-react';
+import { Trash2, Plus, Save, Send, Download, Upload, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { fmtDateTime } from '@/lib/format';
 import { engineStatus, isAdmin, fetchEngineStatus } from '@/stores/appStore';
 
-const DEMO_TOOLTIP = 'Demo mode — deploy instance sendiri untuk mengkonfigurasi';
+const DEMO_TOOLTIP = 'Mode demo: pasang instance sendiri untuk mengubah konfigurasi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,7 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
     };
 
     const deleteLocation = async (id: number, name: string) => {
+        if (!window.confirm(`Hapus lokasi "${name}"? Peringatan untuk lokasi ini tidak akan dikirim lagi.`)) return;
         try {
             await api.delete(`/locations/${id}`);
             toast.success(`Lokasi "${name}" dihapus`);
@@ -123,18 +125,20 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
             {/* Search & add */}
             <div className="relative">
                 <Input
-                    placeholder={demoMode ? 'Pencarian dinonaktifkan dalam demo mode' : 'Cari kecamatan / kabupaten (min. 2 karakter)...'}
+                    aria-label="Cari kecamatan untuk dipantau"
+                    placeholder={demoMode ? 'Pencarian dimatikan dalam mode demo' : 'Ketik nama kecamatan, minimal 2 huruf'}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     disabled={demoMode}
                 />
                 {(searching || searchResults.length > 0) && (
-                    <div className="absolute z-20 top-full mt-1 w-full bg-white dark:bg-slate-900 border rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="absolute z-20 top-full mt-1 w-full bg-card border rounded-lg shadow-lg max-h-64 overflow-y-auto">
                         {searching && <div className="p-3 text-sm text-muted-foreground">Mencari...</div>}
                         {!searching && searchResults.map(r => (
                             <button
                                 key={r.code}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex justify-between items-center gap-2"
+                                type="button"
+                                className="w-full min-h-11 text-left px-3 py-2 text-sm hover:bg-accent focus-visible:outline-none focus-visible:bg-accent flex justify-between items-center gap-2"
                                 onClick={() => addLocation(r)}
                                 disabled={adding}
                             >
@@ -144,11 +148,11 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                         {[r.district, r.province].filter(Boolean).join(', ')}
                                     </div>
                                 </div>
-                                <Plus className="w-4 h-4 shrink-0 text-green-500" />
+                                <Plus className="w-4 h-4 shrink-0 text-green-700 dark:text-green-400" />
                             </button>
                         ))}
                         {!searching && searchResults.length === 0 && searchQuery.length >= 2 && (
-                            <div className="p-3 text-sm text-muted-foreground">Tidak ada hasil</div>
+                            <div className="p-3 text-sm text-muted-foreground">Tidak ada kecamatan dengan nama itu. Periksa ejaannya.</div>
                         )}
                     </div>
                 )}
@@ -158,8 +162,8 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
             {loading ? (
                 <div className="py-6 text-center text-muted-foreground text-sm">Memuat lokasi...</div>
             ) : locations.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm italic">
-                    Belum ada lokasi yang dipantau.
+                <div className="py-6 text-center text-muted-foreground text-sm">
+                    Belum ada lokasi yang dipantau. Cari kecamatan di kolom atas untuk menambahkannya.
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -167,7 +171,7 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                         <div
                             key={loc.id}
                             className={`flex justify-between items-center p-3 border rounded-lg ${
-                                loc.enabled ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950 opacity-60'
+                                loc.enabled ? 'bg-card' : 'bg-muted'
                             }`}
                         >
                             <div>
@@ -177,26 +181,27 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    role="switch"
+                                    aria-checked={loc.enabled}
+                                    aria-label={`Pantau ${loc.label ?? loc.subdistrict_name}`}
                                     onClick={() => toggleLocation(loc.id, loc.enabled)}
                                     disabled={demoMode}
                                     title={demoMode ? DEMO_TOOLTIP : undefined}
-                                    className={`text-xs px-2 py-0.5 rounded-full border ${
-                                        loc.enabled
-                                            ? 'border-green-500 text-green-600'
-                                            : 'border-slate-400 text-slate-500'
-                                    } ${demoMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     {loc.enabled ? 'Aktif' : 'Nonaktif'}
-                                </button>
+                                </Button>
                                 <Button
                                     variant="ghost"
-                                    size="sm"
+                                    size="icon"
+                                    aria-label={`Hapus lokasi ${loc.label ?? loc.subdistrict_name}`}
                                     onClick={() => deleteLocation(loc.id, loc.label ?? loc.subdistrict_name)}
                                     disabled={demoMode}
                                     title={demoMode ? DEMO_TOOLTIP : undefined}
                                 >
-                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                    <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
                                 </Button>
                             </div>
                         </div>
@@ -228,8 +233,8 @@ const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string
         { key: 'to_email', label: 'Recipient Email', placeholder: 'recipient@example.com' },
     ],
     webhook: [
-        { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://your-server.com/webhook' },
-        { key: 'secret', label: 'Secret Header (optional)', type: 'password', placeholder: 'Bearer your-token' },
+        { key: 'webhook_url', label: 'Webhook URL', placeholder: 'https://server-anda.example/webhook' },
+        { key: 'secret', label: 'Header Authorization (opsional)', type: 'password', placeholder: 'Bearer token-anda' },
     ],
 };
 
@@ -263,6 +268,7 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
     };
 
     const deleteChannel = async (id: number) => {
+        if (!window.confirm('Hapus channel ini? Notifikasi tidak akan dikirim lewat channel ini lagi.')) return;
         try {
             await api.delete(`/channels/${id}`);
             toast.success('Channel dihapus');
@@ -281,8 +287,8 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
         setTesting(id);
         try {
             await api.post(`/channels/${id}/test`, {});
-            toast.success('Notifikasi test berhasil dikirim!');
-        } catch { toast.error('Gagal mengirim notifikasi test'); }
+            toast.success('Notifikasi tes terkirim');
+        } catch { toast.error('Notifikasi tes gagal terkirim. Periksa token atau URL channel.'); }
         finally { setTesting(null); }
     };
 
@@ -294,32 +300,34 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
             {loading ? (
                 <div className="py-4 text-center text-sm text-muted-foreground">Memuat channel...</div>
             ) : channels.length === 0 ? (
-                <div className="py-4 text-center text-sm text-muted-foreground italic">
-                    Belum ada channel notifikasi.
+                <div className="py-4 text-center text-sm text-muted-foreground">
+                    Belum ada channel notifikasi. Tambahkan satu di bawah supaya peringatan bisa dikirim.
                 </div>
             ) : (
                 <div className="space-y-2">
                     {channels.map(ch => (
                         <div key={ch.id} className={`flex items-center justify-between p-3 border rounded-lg ${
-                            ch.enabled ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-950 opacity-60'
+                            ch.enabled ? 'bg-card' : 'bg-muted'
                         }`}>
                             <div>
                                 <div className="font-medium text-sm capitalize">{ch.channel_type}</div>
                                 <div className="text-xs text-muted-foreground">
-                                    {ch.last_success_at ? `Terakhir sukses: ${new Date(ch.last_success_at).toLocaleString('id-ID')}` : 'Belum pernah terkirim'}
+                                    {ch.last_success_at ? `Terakhir mengirim: ${fmtDateTime(ch.last_success_at)}` : 'Belum pernah mengirim'}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <button
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    role="switch"
+                                    aria-checked={ch.enabled}
+                                    aria-label={`Channel ${ch.channel_type}`}
                                     onClick={() => toggleChannel(ch.id, ch.enabled)}
                                     disabled={demoMode}
                                     title={demoMode ? DEMO_TOOLTIP : undefined}
-                                    className={`text-xs px-2 py-0.5 rounded-full border ${
-                                        ch.enabled ? 'border-green-500 text-green-600' : 'border-slate-400 text-slate-500'
-                                    } ${demoMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     {ch.enabled ? 'Aktif' : 'Nonaktif'}
-                                </button>
+                                </Button>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -327,11 +335,11 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                     disabled={demoMode || testing === ch.id}
                                     title={demoMode ? DEMO_TOOLTIP : undefined}
                                 >
-                                    <Send className="w-3 h-3 mr-1" />
-                                    {testing === ch.id ? 'Kirim...' : 'Test'}
+                                    <Send className="w-4 h-4 mr-1.5" aria-hidden="true" />
+                                    {testing === ch.id ? 'Mengirim...' : 'Kirim tes'}
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => deleteChannel(ch.id)} disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
-                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                <Button variant="ghost" size="icon" aria-label={`Hapus channel ${ch.channel_type}`} onClick={() => deleteChannel(ch.id)} disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
+                                    <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
                                 </Button>
                             </div>
                         </div>
@@ -340,17 +348,19 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
             )}
 
             {/* Add new channel */}
-            <div className="border rounded-lg p-4 space-y-3 bg-slate-50 dark:bg-slate-950">
-                <h3 className="font-medium text-sm">Tambah Channel Baru</h3>
-                <div className="flex gap-2 flex-wrap">
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/50">
+                <h3 id="add-channel-label" className="font-medium text-sm">Tambah channel baru</h3>
+                <div className="flex gap-2 flex-wrap" role="group" aria-labelledby="add-channel-label">
                     {Object.keys(CHANNEL_FIELDS).map(type => (
                         <button
                             key={type}
+                            type="button"
+                            aria-pressed={addType === type}
                             onClick={() => { setAddType(type); setAddConfig({}); }}
-                            className={`text-xs px-3 py-1 rounded-full border capitalize ${
+                            className={`min-h-11 md:min-h-9 text-sm px-4 rounded-md border capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background ${
                                 addType === type
-                                    ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
-                                    : 'border-slate-300 text-slate-600 hover:border-slate-500'
+                                    ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
+                                    : 'bg-card border-input hover:bg-accent'
                             }`}
                         >
                             {type}
@@ -360,8 +370,9 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                 <div className="space-y-2">
                     {fields.map(f => (
                         <div key={f.key}>
-                            <label className="text-xs font-medium text-muted-foreground">{f.label}</label>
+                            <label htmlFor={`channel-${f.key}`} className="text-sm font-medium">{f.label}</label>
                             <Input
+                                id={`channel-${f.key}`}
                                 type={f.type ?? 'text'}
                                 placeholder={f.placeholder}
                                 value={addConfig[f.key] ?? ''}
@@ -372,7 +383,7 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                 </div>
                 <Button onClick={addChannel} disabled={demoMode || saving} className="w-full" title={demoMode ? DEMO_TOOLTIP : undefined}>
                     <Plus className="w-4 h-4 mr-2" />
-                    {saving ? 'Menyimpan...' : `Tambah ${addType}`}
+                    {saving ? 'Menyimpan...' : `Tambah channel ${addType}`}
                 </Button>
             </div>
         </div>
@@ -381,15 +392,32 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
 
 // ─── Config Tab ───────────────────────────────────────────────────────────────
 
-const CONFIG_FIELDS = [
-    { key: 'poll_interval', label: 'Polling Interval (detik)', placeholder: '300', type: 'number' },
-    { key: 'severity_threshold', label: 'Severity Threshold', placeholder: 'all | minor | moderate | severe | extreme' },
-    { key: 'quiet_hours_enabled', label: 'Quiet Hours (true/false)', placeholder: 'false' },
-    { key: 'quiet_hours_start', label: 'Quiet Hours Mulai', placeholder: '22:00' },
-    { key: 'quiet_hours_end', label: 'Quiet Hours Selesai', placeholder: '06:00' },
-    { key: 'quiet_hours_override_severe', label: 'Override untuk Severe/Extreme (true/false)', placeholder: 'true' },
-    { key: 'bmkg_api_url', label: 'BMKG API URL', placeholder: 'https://bmkg-restapi.vercel.app', readOnly: true },
-    { key: 'notification_language', label: 'Bahasa Notifikasi (id/en)', placeholder: 'id' },
+type ConfigField = {
+    key: string;
+    label: string;
+    hint?: string;
+    type?: string;
+    placeholder?: string;
+    readOnly?: boolean;
+    options?: { value: string; label: string }[];
+};
+
+const YES_NO = [{ value: 'true', label: 'Ya' }, { value: 'false', label: 'Tidak' }];
+
+const CONFIG_FIELDS: ConfigField[] = [
+    { key: 'poll_interval', label: 'Jeda pengecekan (detik)', type: 'number', placeholder: '300', hint: 'Seberapa sering peringatan BMKG dicek. 300 berarti tiap 5 menit.' },
+    { key: 'severity_threshold', label: 'Tingkat peringatan minimum', hint: 'Peringatan di bawah tingkat ini tidak dicatat dan tidak dikirim.', options: [
+        { value: 'all', label: 'Semua tingkat' },
+        { value: 'minor', label: 'Ringan ke atas' },
+        { value: 'moderate', label: 'Sedang ke atas' },
+        { value: 'severe', label: 'Berat ke atas' },
+        { value: 'extreme', label: 'Hanya ekstrem' },
+    ] },
+    { key: 'quiet_hours_enabled', label: 'Aktifkan jam tenang', hint: 'Selama jam tenang notifikasi tidak dikirim.', options: YES_NO },
+    { key: 'quiet_hours_start', label: 'Jam tenang mulai (WIB)', type: 'time' },
+    { key: 'quiet_hours_end', label: 'Jam tenang selesai (WIB)', type: 'time' },
+    { key: 'quiet_hours_override_severe', label: 'Tetap kirim peringatan berat dan ekstrem saat jam tenang', options: YES_NO },
+    { key: 'bmkg_api_url', label: 'URL API BMKG', placeholder: 'https://bmkg-api.dhanypedia.com', readOnly: true, hint: 'Diatur lewat variabel BMKG_API_URL di server.' },
 ];
 
 const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
@@ -438,9 +466,9 @@ const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                 const text = await file.text();
                 const data = JSON.parse(text);
                 await api.post('/config/import', data);
-                toast.success('Konfigurasi diimport');
+                toast.success('Konfigurasi diimpor');
                 window.location.reload();
-            } catch { toast.error('Gagal mengimport konfigurasi'); }
+            } catch { toast.error('Gagal mengimpor. Pastikan berkasnya hasil Ekspor JSON dari aplikasi ini.'); }
         };
         input.click();
     };
@@ -451,33 +479,45 @@ const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
         <div className="space-y-4">
             {CONFIG_FIELDS.map(f => (
                 <div key={f.key} className="space-y-1">
-                    <label className="text-sm font-medium">{f.label}</label>
+                    <label htmlFor={`config-${f.key}`} className="text-sm font-medium block">{f.label}</label>
                     {f.readOnly ? (
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-slate-50 dark:bg-slate-900 text-sm font-mono text-slate-600 dark:text-slate-400 select-all">
+                        <output id={`config-${f.key}`} className="block px-3 py-2 rounded-md border bg-muted text-sm font-mono break-all select-all">
                             {config[f.key] ?? f.placeholder}
-                            <span className="ml-auto text-[10px] font-sans uppercase tracking-wide text-slate-400 shrink-0">Server</span>
-                        </div>
+                        </output>
+                    ) : f.options ? (
+                        <select
+                            id={`config-${f.key}`}
+                            value={config[f.key] ?? f.options[0].value}
+                            onChange={e => setConfig(c => ({ ...c, [f.key]: e.target.value }))}
+                            disabled={demoMode}
+                            className="flex h-11 md:h-10 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
                     ) : (
                         <Input
+                            id={`config-${f.key}`}
                             type={f.type ?? 'text'}
+                            min={f.key === 'poll_interval' ? 60 : undefined}
                             placeholder={f.placeholder}
                             value={config[f.key] ?? ''}
                             onChange={e => setConfig(c => ({ ...c, [f.key]: e.target.value }))}
                             disabled={demoMode}
                         />
                     )}
+                    {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
                 </div>
             ))}
             <Button onClick={save} disabled={demoMode || saving} className="w-full mt-2" title={demoMode ? DEMO_TOOLTIP : undefined}>
                 <Save className="w-4 h-4 mr-2" />
-                {saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+                {saving ? 'Menyimpan...' : 'Simpan konfigurasi'}
             </Button>
             <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={exportConfig} className="flex-1">
-                    <Download className="w-4 h-4 mr-2" /> Export JSON
+                <Button variant="outline" onClick={exportConfig} className="flex-1" disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
+                    <Download className="w-4 h-4 mr-2" aria-hidden="true" /> Ekspor JSON
                 </Button>
                 <Button variant="outline" onClick={importConfig} className="flex-1" disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
-                    <Upload className="w-4 h-4 mr-2" /> Import JSON
+                    <Upload className="w-4 h-4 mr-2" aria-hidden="true" /> Impor JSON
                 </Button>
             </div>
         </div>
@@ -491,6 +531,7 @@ const SystemTab: React.FC = () => {
     const [alertStats, setAlertStats] = useState<any>(null);
     const [version, setVersion] = useState<string>('1.0.0');
     const [loading, setLoading] = useState(true);
+    const [failed, setFailed] = useState(false);
 
     useEffect(() => {
         Promise.all([
@@ -501,30 +542,31 @@ const SystemTab: React.FC = () => {
             setEngStatus(eng);
             setAlertStats(stats);
             setVersion(cfg.data?.app_version ?? '1.0.0');
-        }).catch(() => {})
+        }).catch(() => setFailed(true))
           .finally(() => setLoading(false));
     }, []);
 
     if (loading) return <div className="py-4 text-center text-sm text-muted-foreground">Memuat info sistem...</div>;
+    if (failed) return <div className="py-4 text-center text-sm text-muted-foreground">Info sistem tidak bisa dimuat. Server tidak merespons, coba muat ulang halaman.</div>;
 
     const rows = [
-        { label: 'Versi Aplikasi', value: version },
-        { label: 'Mode', value: engStatus?.demo_mode ? 'Demo' : 'Production' },
-        { label: 'Status Engine', value: engStatus?.running ? 'Berjalan' : 'Berhenti' },
-        { label: 'Poll Terakhir', value: engStatus?.last_poll ? new Date(engStatus.last_poll).toLocaleString('id-ID') : '-' },
-        { label: 'Hasil Poll Terakhir', value: engStatus?.last_poll_result ?? '-' },
-        { label: 'Total Alert Tersimpan', value: alertStats?.total_alerts ?? '-' },
-        { label: 'Alert Bulan Ini', value: alertStats?.alerts_this_month ?? '-' },
-        { label: 'Lokasi Dipantau', value: alertStats?.monitored_locations ?? '-' },
-        { label: 'Channel Aktif', value: alertStats?.active_channels ?? '-' },
+        { label: 'Versi aplikasi', value: version },
+        { label: 'Mode', value: engStatus?.demo_mode ? 'Demo' : 'Produksi' },
+        { label: 'Pemantauan', value: engStatus?.running ? 'Aktif' : 'Berhenti' },
+        { label: 'Cek terakhir', value: fmtDateTime(engStatus?.last_poll) },
+        { label: 'Hasil cek terakhir', value: engStatus?.last_poll_result ?? '-' },
+        { label: 'Total peringatan tercatat', value: alertStats?.total_alerts ?? '-' },
+        { label: 'Peringatan bulan ini', value: alertStats?.alerts_this_month ?? '-' },
+        { label: 'Lokasi dipantau', value: alertStats?.monitored_locations ?? '-' },
+        { label: 'Channel aktif', value: alertStats?.active_channels ?? '-' },
     ];
 
     return (
         <div className="space-y-2">
             {rows.map(({ label, value }) => (
-                <div key={label} className="flex justify-between items-center py-2 border-b last:border-0 text-sm">
+                <div key={label} className="flex justify-between items-center py-2 border-b last:border-0 text-sm gap-4">
                     <span className="text-muted-foreground">{label}</span>
-                    <span className="font-medium">{String(value)}</span>
+                    <span className="font-medium text-right break-words min-w-0">{String(value)}</span>
                 </div>
             ))}
         </div>
@@ -541,13 +583,17 @@ export const SettingsForm: React.FC = () => {
     useEffect(() => { fetchEngineStatus(); }, []);
 
     return (
-        <div className="max-w-4xl mx-auto pb-10 space-y-6">
+        <div className="w-full max-w-4xl mx-auto pb-10 space-y-6">
+            <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Pengaturan</h1>
+                <p className="text-muted-foreground">Lokasi yang dipantau, channel notifikasi, dan jadwal pengecekan.</p>
+            </div>
             {/* Demo Mode Banner */}
             {demoMode && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
                     <Info className="w-4 h-4 shrink-0" />
                     <span>
-                        <strong>Demo Mode</strong> — Konfigurasi dinonaktifkan. Deploy instance sendiri untuk mengaktifkan semua fitur.
+                        <strong>Mode demo.</strong> Pengaturan tidak bisa diubah di sini. Pasang instance sendiri untuk memakai semua fitur.
                     </span>
                 </div>
             )}
@@ -563,9 +609,9 @@ export const SettingsForm: React.FC = () => {
                 <TabsContent value="locations">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Lokasi yang Dipantau</CardTitle>
+                            <CardTitle className="text-lg">Lokasi yang dipantau</CardTitle>
                             <CardDescription>
-                                Tambah kecamatan yang ingin dipantau. Engine akan mencocokkan peringatan BMKG dengan lokasi ini.
+                                Tambahkan kecamatan yang ingin dipantau. Setiap peringatan BMKG dicocokkan dengan daftar ini.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -577,9 +623,9 @@ export const SettingsForm: React.FC = () => {
                 <TabsContent value="channels">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Channel Notifikasi</CardTitle>
+                            <CardTitle className="text-lg">Channel notifikasi</CardTitle>
                             <CardDescription>
-                                Kelola channel notifikasi untuk mengirim peringatan cuaca. Mendukung Telegram, Discord, Slack, Email, dan Webhook.
+                                Tujuan pengiriman peringatan: Telegram, Discord, Slack, email, atau webhook.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -591,9 +637,9 @@ export const SettingsForm: React.FC = () => {
                 <TabsContent value="config">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Konfigurasi Aplikasi</CardTitle>
+                            <CardTitle className="text-lg">Konfigurasi</CardTitle>
                             <CardDescription>
-                                Atur interval polling, threshold severity, jam tenang, dan export/import konfigurasi.
+                                Jeda pengecekan, tingkat minimum, jam tenang, serta ekspor dan impor konfigurasi.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -605,9 +651,9 @@ export const SettingsForm: React.FC = () => {
                 <TabsContent value="system">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Informasi Sistem</CardTitle>
+                            <CardTitle className="text-lg">Informasi sistem</CardTitle>
                             <CardDescription>
-                                Status dan statistik sistem BMKG Alert.
+                                Status pemantauan dan jumlah peringatan yang tercatat.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

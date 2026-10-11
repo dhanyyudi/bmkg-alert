@@ -63,7 +63,8 @@ export const WeatherDisplay: React.FC<Props> = ({ locationCode }) => {
                 setForecast(res.data);
             } catch (err: any) {
                 console.error("Failed to fetch weather:", err);
-                setError(err.response?.data?.message || err.message || "Failed to load weather data");
+                setForecast(null);
+                setError(err?.data?.detail || err?.message || 'Server tidak merespons');
             } finally {
                 setLoading(false);
             }
@@ -75,15 +76,15 @@ export const WeatherDisplay: React.FC<Props> = ({ locationCode }) => {
     if (!locationCode) {
         return (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Cloud className="h-16 w-16 mb-4 opacity-20" />
-                <p>Search and select a location to view weather forecast</p>
+                <Cloud className="h-12 w-12 mb-4" aria-hidden="true" />
+                <p>Pilih lokasi yang dipantau atau cari kecamatan/desa untuk melihat prakiraannya.</p>
             </div>
         );
     }
 
     if (loading) {
         return (
-            <div className="space-y-4">
+            <div className="space-y-4" role="status" aria-label="Memuat prakiraan cuaca">
                 <Skeleton className="h-8 w-3/4" />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {[1, 2, 3].map((i) => (
@@ -96,8 +97,8 @@ export const WeatherDisplay: React.FC<Props> = ({ locationCode }) => {
 
     if (error) {
         return (
-             <div className="p-4 border border-red-200 bg-red-50 text-red-600 rounded-md">
-                Error: {error}. Please try selecting a Kelurahan/Desa level location.
+            <div role="alert" className="p-4 border border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 rounded-md text-sm">
+                Prakiraan cuaca tidak bisa dimuat: {error}. Coba pilih kelurahan/desa lain atau muat ulang halaman.
             </div>
         );
     }
@@ -130,15 +131,14 @@ export const WeatherDisplay: React.FC<Props> = ({ locationCode }) => {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         {mainForecast.weather_code >= 60 ? (
-                                            <CloudRain className="h-10 w-10 text-blue-500" />
+                                            <CloudRain className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                                         ) : mainForecast.weather_code >= 3 ? (
-                                            <Cloud className="h-10 w-10 text-slate-500" />
+                                            <Cloud className="h-10 w-10 text-muted-foreground" />
                                         ) : (
-                                            <Sun className="h-10 w-10 text-orange-500" />
+                                            <Sun className="h-10 w-10 text-amber-600 dark:text-amber-400" />
                                         )}
                                         <div>
                                             <p className="font-semibold text-lg">{mainForecast.weather}</p>
-                                            <p className="text-xs text-muted-foreground">{mainForecast.weather_en}</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
@@ -149,11 +149,11 @@ export const WeatherDisplay: React.FC<Props> = ({ locationCode }) => {
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                     <div className="flex items-center gap-2 text-muted-foreground">
                                         <Droplets className="h-4 w-4" />
-                                        <span>Humidity: {mainForecast.humidity_pct}%</span>
+                                        <span>Kelembapan {mainForecast.humidity_pct}%</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
                                         <Wind className="h-4 w-4" />
-                                        <span>{mainForecast.wind_speed_kmh} km/h {mainForecast.wind_direction}</span>
+                                        <span>Angin {mainForecast.wind_speed_kmh} km/jam dari {mainForecast.wind_direction}</span>
                                     </div>
                                 </div>
 

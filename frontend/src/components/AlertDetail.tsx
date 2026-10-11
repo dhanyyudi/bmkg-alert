@@ -3,7 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import Map, { Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { splitRings } from '@/lib/polygon';
+import { severityStyle } from '@/lib/severity';
+import { certaintyLabel, fmtDateTime, urgencyLabel } from '@/lib/format';
+import { webglAvailable } from '@/lib/webgl';
+import { EventIcon } from '@/components/EventIcon';
+import { Button } from '@/components/ui/button';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,27 +60,13 @@ function highlightAreas(text: string, areaNames: string[]): React.ReactNode[] {
     );
 }
 
-/** Return an emoji icon for the alert event type. */
-function getEventIcon(event: string | null): string {
-    const e = (event ?? '').toLowerCase();
-    if (e.includes('petir') || e.includes('badai') || e.includes('thunderstorm')) return '⛈️';
-    if (e.includes('angin') || e.includes('wind')) return '💨';
-    if (e.includes('tsunami')) return '🌊';
-    if (e.includes('hujan') || e.includes('rain')) return '🌧️';
-    if (e.includes('panas') || e.includes('kering') || e.includes('hot')) return '☀️';
-    if (e.includes('kabut') || e.includes('fog')) return '🌫️';
-    if (e.includes('gempa') || e.includes('earthquake')) return '🌍';
-    if (e.includes('banjir') || e.includes('flood')) return '🌊';
-    return '⚠️';
-}
-
 /** Map known backend error patterns to user-friendly Indonesian descriptions. */
 function explainDeliveryError(msg: string): React.ReactNode {
     if (msg.includes("argument of type 'datetime.datetime' is not a container or iterable")) {
         return (
             <span>
-                Gagal memformat waktu pada pesan notifikasi{' '}
-                <span className="text-slate-400 text-xs">(internal: datetime type error)</span>
+                Waktu pada pesan notifikasi gagal diformat{' '}
+                <span className="text-muted-foreground text-xs">(internal: datetime type error)</span>
             </span>
         );
     }
@@ -84,24 +76,10 @@ function explainDeliveryError(msg: string): React.ReactNode {
     return msg;
 }
 
-const SEVERITY_CLASS: Record<string, string> = {
-    extreme:  'bg-red-900 text-white',
-    severe:   'bg-red-500 text-white',
-    moderate: 'bg-amber-500 text-white',
-    minor:    'bg-blue-500 text-white',
-};
-
-const SEVERITY_HEX: Record<string, string> = {
-    extreme:  '#7f1d1d',
-    severe:   '#ef4444',
-    moderate: '#f59e0b',
-    minor:    '#3b82f6',
-};
-
-const fmtDate = (iso: string | null) => {
-    if (!iso) return '-';
-    try { return new Date(iso).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' }); }
-    catch { return iso; }
+const DELIVERY_STATUS: Record<string, string> = {
+    sent: 'Terkirim',
+    failed: 'Gagal',
+    skipped_quiet_hours: 'Ditahan (jam tenang)',
 };
 
 const parsePolygonData = (raw: AreaPolygon[] | string | null): AreaPolygon[] => {
@@ -135,10 +113,12 @@ const MiniMap: React.FC<MiniMapProps> = ({ areas, color, className = 'h-56' }) =
         }
     }
 
-    if (features.length === 0) {
+    if (features.length === 0 || !webglAvailable) {
         return (
-            <div className={`flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-muted-foreground ${className}`}>
-                Tidak ada data polygon tersedia
+            <div className={`flex items-center justify-center p-4 text-center bg-muted rounded-lg text-sm text-muted-foreground ${className}`}>
+                {features.length === 0
+                    ? 'BMKG tidak menyertakan data poligon untuk peringatan ini.'
+                    : 'Peta tidak bisa ditampilkan karena browser ini tidak mendukung WebGL.'}
             </div>
         );
     }
@@ -167,7 +147,6 @@ const MiniMap: React.FC<MiniMapProps> = ({ areas, color, className = 'h-56' }) =
                 }}
                 style={{ width: '100%', height: '100%' }}
                 mapStyle="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
-                attributionControl={false}
             >
                 <Source type="geojson" data={geoJson}>
                     <Layer
@@ -197,6 +176,7 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
     const [deliveries, setDeliveries] = useState<Delivery[]>([]);
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
+    const [failed, setFailed] = useState(false);
 
     useEffect(() => {
         api.get<{ data: AlertRecord; deliveries: Delivery[] }>(`/alerts/${alertId}`)
@@ -206,69 +186,73 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
             })
             .catch(err => {
                 if (err?.status === 404) setNotFound(true);
-                else console.error('Failed to load alert:', err);
+                else { console.error('Failed to load alert:', err); setFailed(true); }
             })
             .finally(() => setLoading(false));
     }, [alertId]);
 
-    if (loading) return <div className="py-16 text-center text-muted-foreground">Memuat detail alert...</div>;
+    const backLink = (
+        <a href="/history" className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Kembali ke Riwayat
+        </a>
+    );
+
+    if (loading) return <div className="py-16 text-center text-muted-foreground">Memuat detail peringatan...</div>;
+
+    if (failed) {
+        return (
+            <div className="py-16 text-center space-y-3">
+                <p className="text-xl font-bold">Detail peringatan tidak bisa dimuat</p>
+                <p className="text-muted-foreground">Server tidak merespons. Periksa koneksi, lalu coba lagi.</p>
+                <Button variant="outline" onClick={() => window.location.reload()}>Coba lagi</Button>
+            </div>
+        );
+    }
+
     if (notFound || !alert) {
         return (
-            <div className="py-16 text-center">
-                <p className="text-2xl font-bold mb-2">Alert tidak ditemukan</p>
-                <p className="text-muted-foreground">ID #{alertId} tidak ada dalam database.</p>
-                <a href="/history" className="mt-4 inline-block text-blue-500 hover:underline text-sm">
-                    ← Kembali ke History
-                </a>
+            <div className="py-16 text-center space-y-3">
+                <p className="text-xl font-bold">Peringatan tidak ditemukan</p>
+                <p className="text-muted-foreground">Tidak ada peringatan dengan nomor #{alertId} di riwayat.</p>
+                {backLink}
             </div>
         );
     }
 
     const areas = parsePolygonData(alert.polygon_data);
-    const severityKey = alert.severity?.toLowerCase() ?? '';
-    const badgeClass = SEVERITY_CLASS[severityKey] ?? 'bg-slate-400 text-white';
-    const mapColor = SEVERITY_HEX[severityKey] ?? '#10b981';
+    const sev = severityStyle(alert.severity);
+    const mapColor = sev.mapColor;
+    const active = alert.status === 'active';
 
     const fields = [
-        { label: 'BMKG Alert Code', value: alert.bmkg_alert_code },
-        { label: 'Event', value: alert.event ?? '-' },
-        { label: 'Urgency', value: alert.urgency ?? '-' },
-        { label: 'Certainty', value: alert.certainty ?? '-' },
-        { label: 'Status', value: alert.status },
-        { label: 'Berlaku', value: fmtDate(alert.effective) },
-        { label: 'Berakhir', value: fmtDate(alert.expires) },
-        { label: 'Terdeteksi', value: fmtDate(alert.created_at) },
-        { label: 'Matched', value: alert.matched_text ? `${alert.matched_text} (${alert.match_type})` : '-' },
+        { label: 'Kode peringatan BMKG', value: alert.bmkg_alert_code },
+        { label: 'Jenis', value: alert.event ?? '-' },
+        { label: 'Urgensi', value: urgencyLabel(alert.urgency) },
+        { label: 'Kepastian', value: certaintyLabel(alert.certainty) },
+        { label: 'Status', value: active ? 'Masih berlaku' : 'Sudah berakhir' },
+        { label: 'Berlaku', value: fmtDateTime(alert.effective) },
+        { label: 'Berakhir', value: fmtDateTime(alert.expires) },
+        { label: 'Terdeteksi', value: fmtDateTime(alert.created_at) },
+        { label: 'Lokasi yang cocok', value: alert.matched_text ? `${alert.matched_text} (${alert.match_type})` : '-' },
     ];
 
     return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-            {/* Back */}
-            <div>
-                <a href="/history" className="text-sm text-muted-foreground hover:text-foreground">
-                    ← Kembali ke History
-                </a>
-            </div>
+        <div className="space-y-6 w-full max-w-4xl mx-auto">
+            <div>{backLink}</div>
 
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <span role="img" aria-label="event icon">{getEventIcon(alert.event)}</span>
-                        {alert.event ?? 'Alert'}
+                        <EventIcon event={alert.event} className="h-6 w-6 shrink-0 text-muted-foreground" />
+                        {alert.event ?? 'Peringatan cuaca'}
                     </h1>
                     <p className="text-muted-foreground mt-1">{alert.headline ?? '-'}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${badgeClass}`}>
-                        {alert.severity ?? 'Unknown'}
-                    </span>
-                    <span className={`text-sm px-3 py-1 rounded-full border ${
-                        alert.status === 'active'
-                            ? 'border-green-500 text-green-600'
-                            : 'border-slate-400 text-slate-500'
-                    }`}>
-                        {alert.status}
+                    <span className={`text-sm font-semibold px-3 py-1 rounded ${sev.badge}`}>{sev.label}</span>
+                    <span className={`text-sm px-3 py-1 rounded border ${active ? 'border-green-700 text-green-700 dark:border-green-400 dark:text-green-400' : 'text-muted-foreground'}`}>
+                        {active ? 'Masih berlaku' : 'Sudah berakhir'}
                     </span>
                 </div>
             </div>
@@ -276,7 +260,7 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
             <div className="grid gap-6 md:grid-cols-2 items-stretch">
                 {/* Detail fields */}
                 <Card className="flex flex-col">
-                    <CardHeader><CardTitle className="text-base">Informasi Alert</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-base">Rincian peringatan</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
                         {fields.map(({ label, value }) => (
                             <div key={label} className="flex justify-between text-sm border-b last:border-0 py-1.5 gap-4">
@@ -289,9 +273,9 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
                                 href={alert.infographic_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="block text-sm text-blue-500 hover:underline pt-2"
+                                className="inline-flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline pt-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
-                                📊 Lihat Infografis BMKG
+                                <ExternalLink className="h-4 w-4" aria-hidden="true" /> Lihat infografis BMKG
                             </a>
                         )}
                     </CardContent>
@@ -299,12 +283,12 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
 
                 {/* Map */}
                 <Card className="flex flex-col">
-                    <CardHeader><CardTitle className="text-base">Peta Wilayah Terdampak</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-base">Peta wilayah terdampak</CardTitle></CardHeader>
                     <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
-                        <MiniMap areas={areas} color={mapColor} className="flex-1 min-h-0" />
+                        <MiniMap areas={areas} color={mapColor} className="flex-1 min-h-[14rem]" />
                         {areas.length > 0 && (
                             <div className="mt-3 pt-3 border-t space-y-1.5">
-                                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Wilayah Terdampak</p>
+                                <p className="text-xs font-semibold mb-2">Wilayah terdampak</p>
                                 {areas.map((a, i) => (
                                     <div key={i} className="text-xs flex items-center gap-2">
                                         <div className="w-3 h-3 rounded-sm shrink-0 opacity-70" style={{ backgroundColor: mapColor }} />
@@ -322,7 +306,7 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
                 <Card>
                     <CardHeader><CardTitle className="text-base">Deskripsi</CardTitle></CardHeader>
                     <CardContent>
-                        <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
+                        <p className="text-sm whitespace-pre-line leading-relaxed">
                             {highlightAreas(alert.description, areas.map(a => a.name))}
                         </p>
                     </CardContent>
@@ -331,31 +315,31 @@ export const AlertDetail: React.FC<AlertDetailProps> = ({ alertId }) => {
 
             {/* Delivery log */}
             <Card>
-                <CardHeader><CardTitle className="text-base">Log Pengiriman Notifikasi</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">Riwayat pengiriman notifikasi</CardTitle></CardHeader>
                 <CardContent>
                     {deliveries.length === 0 ? (
-                        <p className="text-sm text-muted-foreground italic">Belum ada pengiriman notifikasi untuk alert ini.</p>
+                        <p className="text-sm text-muted-foreground">Belum ada notifikasi yang dikirim untuk peringatan ini. Periksa apakah ada channel yang aktif di Pengaturan.</p>
                     ) : (
                         <div className="space-y-2">
                             {deliveries.map(d => (
-                                <div key={d.id} className="flex items-center justify-between text-sm border-b last:border-0 py-2">
+                                <div key={d.id} className="flex items-center justify-between gap-3 flex-wrap text-sm border-b last:border-0 py-2">
                                     <div>
                                         <span className="font-medium">Channel #{d.channel_id}</span>
                                         {d.error_message && (
-                                            <p className="text-xs text-red-500 mt-0.5">{explainDeliveryError(d.error_message)}</p>
+                                            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{explainDeliveryError(d.error_message)}</p>
                                         )}
                                     </div>
                                     <div className="flex items-center gap-3 text-right">
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                        <span className={`text-xs px-2 py-0.5 rounded ${
                                             d.status === 'sent'
-                                                ? 'bg-green-100 text-green-700'
+                                                ? 'bg-green-100 text-green-800'
                                                 : d.status === 'failed'
-                                                ? 'bg-red-100 text-red-700'
-                                                : 'bg-slate-100 text-slate-600'
+                                                ? 'bg-red-100 text-red-800'
+                                                : 'bg-slate-200 text-slate-700'
                                         }`}>
-                                            {d.status}
+                                            {DELIVERY_STATUS[d.status] ?? d.status}
                                         </span>
-                                        <span className="text-xs text-muted-foreground">{fmtDate(d.sent_at)}</span>
+                                        <span className="text-xs text-muted-foreground">{fmtDateTime(d.sent_at)}</span>
                                     </div>
                                 </div>
                             ))}

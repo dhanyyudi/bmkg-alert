@@ -35,11 +35,11 @@ type BotInfo = {
 };
 
 const SEVERITY_OPTIONS = [
-    { value: 'all', label: 'Semua', desc: 'Semua tingkat peringatan' },
-    { value: 'minor', label: 'Minor+', desc: 'Minor ke atas' },
-    { value: 'moderate', label: 'Moderate+', desc: 'Moderate ke atas' },
-    { value: 'severe', label: 'Severe+', desc: 'Severe dan Extreme' },
-    { value: 'extreme', label: 'Extreme', desc: 'Hanya Extreme' },
+    { value: 'all', label: 'Semua tingkat' },
+    { value: 'minor', label: 'Ringan ke atas' },
+    { value: 'moderate', label: 'Sedang ke atas' },
+    { value: 'severe', label: 'Berat ke atas' },
+    { value: 'extreme', label: 'Hanya ekstrem' },
 ];
 
 const TRIAL_CHAT_KEY = 'bmkg_trial_chat_id';
@@ -181,7 +181,7 @@ export const TryMode: React.FC = () => {
         if (!trialStatus?.id) return;
         setSendingTest(true);
         try {
-            await api.post(`/trial/${trialStatus.id}/test-message`, {});
+            await api.post(`/trial/${trialStatus.id}/test-message?chat_id=${encodeURIComponent(chatId)}`, {});
             toast.success('Pesan tes berhasil dikirim! Cek Telegram Anda.');
         } catch (e: any) {
             toast.error(e?.message ?? 'Gagal mengirim pesan tes. Pastikan sudah kirim /start ke bot.');
@@ -206,15 +206,15 @@ export const TryMode: React.FC = () => {
         return (
             <div className="space-y-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Coba BMKG Alert</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Coba BMKG Alert</h1>
                     <p className="text-muted-foreground">Trial notifikasi Telegram selama 24 jam.</p>
                 </div>
 
                 <Card className="border-green-200 dark:border-green-800">
                     <CardHeader>
                         <div className="flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                            <CardTitle>Trial Aktif</CardTitle>
+                            <CheckCircle className="w-5 h-5 text-green-700 dark:text-green-400" />
+                            <CardTitle className="text-lg">Trial aktif</CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -227,9 +227,9 @@ export const TryMode: React.FC = () => {
                             </div>
                             <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
                                 <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                                    <AlertTriangle className="w-3 h-3" /> Severity
+                                    <AlertTriangle className="w-3 h-3" /> Tingkat minimum
                                 </div>
-                                <p className="font-medium capitalize">{trialStatus.severity_min === 'all' ? 'Semua' : `${trialStatus.severity_min}+`}</p>
+                                <p className="font-medium">{SEVERITY_OPTIONS.find(o => o.value === trialStatus.severity_min)?.label ?? 'Semua tingkat'}</p>
                             </div>
                             <div className="rounded-lg bg-slate-50 dark:bg-slate-800 p-3">
                                 <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
@@ -265,7 +265,7 @@ export const TryMode: React.FC = () => {
                                 <p className="text-sm font-medium text-red-700 dark:text-red-400">
                                     Yakin ingin menghentikan trial?
                                 </p>
-                                <p className="text-xs text-red-600/80 dark:text-red-500">
+                                <p className="text-xs text-red-700 dark:text-red-400">
                                     Notifikasi akan langsung berhenti dan trial tidak bisa diaktifkan kembali tanpa mendaftar ulang.
                                 </p>
                                 <div className="flex gap-2">
@@ -294,7 +294,7 @@ export const TryMode: React.FC = () => {
                             <Button
                                 variant="outline"
                                 onClick={() => setConfirmCancel(true)}
-                                className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                                className="w-full text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
                             >
                                 <X className="w-4 h-4 mr-2" />
                                 Hentikan Trial
@@ -310,16 +310,16 @@ export const TryMode: React.FC = () => {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Coba BMKG Alert</h1>
-                <p className="text-muted-foreground">Dapatkan notifikasi cuaca via Telegram selama 24 jam — gratis, tanpa deploy.</p>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Coba BMKG Alert</h1>
+                <p className="text-muted-foreground">Terima peringatan cuaca BMKG lewat Telegram selama 24 jam. Gratis, tanpa perlu memasang server.</p>
             </div>
 
             {/* Prerequisite: start the bot first */}
             <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30">
                 <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
-                        <Bot className="w-5 h-5 text-blue-500" />
-                        <CardTitle className="text-base">Sebelum Mulai</CardTitle>
+                        <Bot className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <CardTitle className="text-base">Sebelum mulai</CardTitle>
                     </div>
                     <CardDescription>
                         Lakukan 2 langkah ini di Telegram terlebih dahulu agar bot dapat menghubungi Anda.
@@ -328,7 +328,7 @@ export const TryMode: React.FC = () => {
                 <CardContent className="space-y-4 text-sm">
                     {/* Step 1 */}
                     <div className="flex gap-3 items-start">
-                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#229ED9] text-white text-xs flex items-center justify-center font-bold mt-0.5">1</span>
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">1</span>
                         <div className="flex-1 space-y-2">
                             <p className="font-medium">Dapatkan Chat ID Anda</p>
                             <p className="text-xs text-muted-foreground">
@@ -338,7 +338,7 @@ export const TryMode: React.FC = () => {
                                 href="https://t.me/userinfobot"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#229ED9] hover:bg-[#1a8bc4] active:bg-[#1577a8] text-white text-xs font-semibold transition-colors shadow-sm"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg min-h-11 bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold transition-colors"
                             >
                                 <Send className="w-3.5 h-3.5" />
                                 Buka @userinfobot di Telegram
@@ -350,13 +350,13 @@ export const TryMode: React.FC = () => {
 
                     {/* Step 2 */}
                     <div className="flex gap-3 items-start">
-                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#229ED9] text-white text-xs flex items-center justify-center font-bold mt-0.5">2</span>
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary-700 text-white text-xs flex items-center justify-center font-bold mt-0.5">2</span>
                         <div className="flex-1 space-y-2">
                             <p className="font-medium">Mulai percakapan dengan bot kami</p>
                             <p className="text-xs text-muted-foreground">
                                 Kirim <code>/start</code> ke bot BMKG Alert.{' '}
-                                <span className="text-amber-600 dark:text-amber-400 font-medium">
-                                    Langkah ini wajib — bot tidak bisa mengirim pesan jika belum pernah Anda hubungi.
+                                <span className="text-amber-700 dark:text-amber-400 font-medium">
+                                    Langkah ini wajib: bot tidak bisa mengirim pesan jika belum pernah Anda hubungi.
                                 </span>
                             </p>
                             {botInfo?.available && botInfo.username ? (
@@ -364,15 +364,15 @@ export const TryMode: React.FC = () => {
                                     href={`https://t.me/${botInfo.username}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#229ED9] hover:bg-[#1a8bc4] active:bg-[#1577a8] text-white text-xs font-semibold transition-colors shadow-sm"
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg min-h-11 bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold transition-colors"
                                 >
                                     <Bot className="w-3.5 h-3.5" />
                                     Buka @{botInfo.username} di Telegram
                                 </a>
                             ) : (
-                                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-400 text-xs font-semibold cursor-not-allowed">
+                                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-lg min-h-11 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold cursor-not-allowed">
                                     <Bot className="w-3.5 h-3.5" />
-                                    Bot belum dikonfigurasi
+                                    Bot belum dikonfigurasi di server ini
                                 </span>
                             )}
                         </div>
@@ -382,7 +382,7 @@ export const TryMode: React.FC = () => {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Daftar Trial 24 Jam</CardTitle>
+                    <CardTitle className="text-lg">Daftar trial 24 jam</CardTitle>
                     <CardDescription>
                         Masukkan Chat ID Telegram, pilih lokasi, dan mulai menerima peringatan cuaca BMKG.
                     </CardDescription>
@@ -400,7 +400,7 @@ export const TryMode: React.FC = () => {
                         <p className="text-xs text-muted-foreground">
                             Dapatkan dari{' '}
                             <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer"
-                               className="text-[#229ED9] hover:underline font-medium">
+                               className="text-blue-600 dark:text-blue-400 underline underline-offset-2 font-medium">
                                 @userinfobot
                             </a>{' '}
                             (langkah 1 di atas).
@@ -409,7 +409,7 @@ export const TryMode: React.FC = () => {
 
                     {/* Step 2: Location */}
                     <div className="space-y-2">
-                        <p className="text-sm font-medium">Pilih Lokasi</p>
+                        <label htmlFor="trial-location" className="text-sm font-medium block">Lokasi (kecamatan)</label>
                         {selectedLocation ? (
                             <div className="flex items-center justify-between p-3 border rounded-lg bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
                                 <div>
@@ -418,24 +418,26 @@ export const TryMode: React.FC = () => {
                                         {[selectedLocation.district, selectedLocation.province].filter(Boolean).join(', ')}
                                     </div>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={() => setSelectedLocation(null)}>
-                                    <X className="w-4 h-4" />
+                                <Button variant="ghost" size="icon" aria-label="Ganti lokasi" onClick={() => setSelectedLocation(null)}>
+                                    <X className="w-4 h-4" aria-hidden="true" />
                                 </Button>
                             </div>
                         ) : (
                             <div className="relative">
                                 <Input
-                                    placeholder="Cari kecamatan (min. 2 karakter)..."
+                                    id="trial-location"
+                                    placeholder="Ketik nama kecamatan, minimal 2 huruf"
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                 />
                                 {(searching || searchResults.length > 0) && (
-                                    <div className="absolute z-20 top-full mt-1 w-full bg-white dark:bg-slate-900 border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                    <div className="absolute z-20 top-full mt-1 w-full bg-card border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                                         {searching && <div className="p-3 text-sm text-muted-foreground">Mencari...</div>}
                                         {!searching && searchResults.map(r => (
                                             <button
                                                 key={r.code}
-                                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                                                type="button"
+                                                className="w-full min-h-11 text-left px-3 py-2 text-sm hover:bg-accent focus-visible:outline-none focus-visible:bg-accent"
                                                 onClick={() => {
                                                     setSelectedLocation(r);
                                                     setSearchQuery('');
@@ -449,7 +451,7 @@ export const TryMode: React.FC = () => {
                                             </button>
                                         ))}
                                         {!searching && searchResults.length === 0 && searchQuery.length >= 2 && (
-                                            <div className="p-3 text-sm text-muted-foreground">Tidak ada hasil</div>
+                                            <div className="p-3 text-sm text-muted-foreground">Tidak ada kecamatan dengan nama itu. Periksa ejaannya.</div>
                                         )}
                                     </div>
                                 )}
@@ -459,25 +461,26 @@ export const TryMode: React.FC = () => {
 
                     {/* Step 3: Severity */}
                     <div className="space-y-2">
-                        <p className="text-sm font-medium">Minimum Severity</p>
-                        <div className="flex flex-wrap gap-2">
+                        <p id="trial-severity-label" className="text-sm font-medium">Tingkat peringatan minimum</p>
+                        <div className="flex flex-wrap gap-2" role="group" aria-labelledby="trial-severity-label">
                             {SEVERITY_OPTIONS.map(opt => (
                                 <button
                                     key={opt.value}
+                                    type="button"
+                                    aria-pressed={severity === opt.value}
                                     onClick={() => setSeverity(opt.value)}
-                                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                    className={`min-h-11 md:min-h-9 text-sm px-4 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background ${
                                         severity === opt.value
-                                            ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
-                                            : 'border-slate-300 text-slate-600 hover:border-slate-500'
+                                            ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
+                                            : 'border-input hover:bg-accent'
                                     }`}
-                                    title={opt.desc}
                                 >
                                     {opt.label}
                                 </button>
                             ))}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Anda hanya akan menerima peringatan dengan severity yang dipilih atau lebih tinggi.
+                            Anda hanya menerima peringatan pada tingkat yang dipilih atau lebih tinggi.
                         </p>
                     </div>
 
@@ -493,7 +496,7 @@ export const TryMode: React.FC = () => {
                     </Button>
 
                     <p className="text-xs text-muted-foreground text-center">
-                        Pastikan sudah selesaikan langkah 1 & 2 di atas sebelum mendaftar.
+                        Selesaikan langkah 1 dan 2 di atas sebelum mendaftar.
                     </p>
                 </CardContent>
             </Card>

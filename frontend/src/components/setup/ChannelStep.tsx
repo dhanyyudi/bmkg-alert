@@ -41,7 +41,7 @@ export const ChannelStep: React.FC = () => {
             const res = await api.get<{ data: Channel[] }>('/channels');
             setChannels(res.data ?? []);
         } catch {
-            // silently ignore — user will see empty list
+            // leave the list empty; the add form below still works
         }
     };
 
@@ -97,10 +97,10 @@ export const ChannelStep: React.FC = () => {
         try {
             await api.post(`/channels/${id}/test`, {});
             setTestStatus(s => ({ ...s, [id]: 'ok' }));
-            toast.success('Test berhasil!', { description: 'Cek Telegram Anda — pesan test sudah dikirim.' });
+            toast.success('Pesan tes terkirim', { description: 'Cek Telegram Anda.' });
         } catch (e: any) {
             setTestStatus(s => ({ ...s, [id]: 'fail' }));
-            toast.error('Test gagal', {
+            toast.error('Pesan tes gagal terkirim', {
                 description: e?.message ?? 'Pastikan Bot Token dan Chat ID sudah benar.',
             });
         } finally {
@@ -116,7 +116,7 @@ export const ChannelStep: React.FC = () => {
 
                 <div>
                     <p className="font-semibold text-blue-800 dark:text-blue-200 mb-1">
-                        1 · Dapatkan Bot Token dari @BotFather
+                        1. Dapatkan Bot Token dari @BotFather
                     </p>
                     <ol className="list-decimal pl-4 space-y-0.5 text-blue-700 dark:text-blue-300">
                         <li>Buka Telegram, cari <strong>@BotFather</strong></li>
@@ -131,37 +131,37 @@ export const ChannelStep: React.FC = () => {
 
                 <div>
                     <p className="font-semibold text-blue-800 dark:text-blue-200 mb-1">
-                        2 · Dapatkan Chat ID (pilih salah satu cara)
+                        2. Dapatkan Chat ID (pilih salah satu cara)
                     </p>
                     <div className="space-y-2 text-blue-700 dark:text-blue-300">
 
                         <div className="rounded bg-blue-100 dark:bg-blue-900/50 px-3 py-2">
-                            <p className="font-medium text-xs uppercase tracking-wide mb-1">
-                                Cara A — via @userinfobot (termudah, tanpa token)
+                            <p className="font-semibold text-xs mb-1">
+                                Cara A: lewat @userinfobot (termudah, tanpa token)
                             </p>
                             <ol className="list-decimal pl-4 space-y-0.5 text-xs">
                                 <li>Buka chat/grup target di Telegram</li>
                                 <li>Forward satu pesan dari sana ke <strong>@userinfobot</strong></li>
-                                <li>Bot akan membalas dengan <em>Forwarded from: Chat ID: …</em></li>
+                                <li>Bot akan membalas dengan <em>Forwarded from: Chat ID: ...</em></li>
                                 <li>Salin angkanya (contoh: <code>-1001234567890</code> untuk grup)</li>
                             </ol>
                         </div>
 
                         <div className="rounded bg-blue-100 dark:bg-blue-900/50 px-3 py-2">
-                            <p className="font-medium text-xs uppercase tracking-wide mb-1">
-                                Cara B — via Telegram API (jika sudah punya token)
+                            <p className="font-semibold text-xs mb-1">
+                                Cara B: lewat Telegram API (jika sudah punya token)
                             </p>
                             <ol className="list-decimal pl-4 space-y-0.5 text-xs">
                                 <li>Tambahkan bot ke grup/channel, lalu kirim pesan apapun</li>
                                 <li>
-                                    Buka URL berikut di browser — ganti <code>TOKEN</code> dengan token bot Anda:
+                                    Buka URL berikut di browser, ganti <code>TOKEN</code> dengan token bot Anda:
                                     <br />
-                                    <code className="bg-blue-200 dark:bg-blue-900 px-1 rounded break-all text-[11px]">
+                                    <code className="bg-blue-200 dark:bg-blue-900 px-1 rounded break-all text-xs">
                                         https://api.telegram.org/bot<strong>TOKEN</strong>/getUpdates
                                     </code>
                                 </li>
                                 <li>
-                                    Cari field <code>{'"chat":{"id":'}</code> — angka itu adalah Chat ID Anda
+                                    Cari <code>{'"chat":{"id":'}</code>. Angka setelahnya adalah Chat ID Anda
                                 </li>
                                 <li>
                                     Jika hasilnya <code>{"result:[]"}</code> (kosong), kirim pesan ulang ke bot lalu
@@ -174,60 +174,66 @@ export const ChannelStep: React.FC = () => {
                 </div>
 
                 <p className="text-blue-700 dark:text-blue-300 text-xs border-t border-blue-200 dark:border-blue-800 pt-2">
-                    <strong>Nama Alias</strong> adalah label bebas untuk channel ini di sistem BMKG Alert —{' '}
+                    <strong>Nama alias</strong> adalah label bebas untuk channel ini di BMKG Alert,{' '}
                     <em>bukan</em> username bot. Contoh: <em>"Grup RT 05"</em>, <em>"Channel Keluarga"</em>,{' '}
                     <em>"Notif Pribadi"</em>.
                 </p>
             </div>
 
             {/* ── Add channel form ──────────────────────────────────────────── */}
-            <div className="space-y-3 p-4 border rounded-lg bg-slate-50 dark:bg-slate-900/50">
-                <p className="text-sm font-medium">Tambah Channel Telegram</p>
+            <div className="space-y-3 p-4 border rounded-lg bg-muted/50">
+                <h3 className="text-sm font-semibold">Tambah channel Telegram</h3>
 
                 <div className="grid gap-3">
                     <div>
-                        <label className="text-xs font-medium mb-1 block text-slate-600 dark:text-slate-400">
-                            Nama Alias <span className="text-red-500">*</span>
+                        <label htmlFor="setup-channel-name" className="text-sm font-medium mb-1 block">
+                            Nama alias <span className="font-normal text-muted-foreground">(wajib)</span>
                         </label>
                         <Input
-                            placeholder="Contoh: Grup Keluarga, Notif Pribadi"
+                            id="setup-channel-name"
+                            placeholder="Misalnya Grup Keluarga"
                             value={name}
                             onChange={e => setName(e.target.value)}
                         />
                     </div>
 
                     <div>
-                        <label className="text-xs font-medium mb-1 block text-slate-600 dark:text-slate-400">
-                            Bot Token <span className="text-red-500">*</span>
-                            <span className="ml-1 font-normal text-slate-400">(dari @BotFather)</span>
+                        <label htmlFor="setup-channel-token" className="text-sm font-medium mb-1 block">
+                            Bot Token <span className="font-normal text-muted-foreground">(wajib, dari @BotFather)</span>
                         </label>
                         <div className="relative">
                             <Input
+                                id="setup-channel-token"
                                 type={showToken ? 'text' : 'password'}
+                                autoComplete="off"
                                 placeholder="123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                                 value={botToken}
                                 onChange={e => setBotToken(e.target.value)}
-                                className="pr-10 font-mono text-xs"
+                                className="pr-12 font-mono"
                             />
                             <button
                                 type="button"
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                aria-label={showToken ? 'Sembunyikan token' : 'Tampilkan token'}
+                                aria-pressed={showToken}
+                                className="absolute right-0 top-0 h-full w-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 onClick={() => setShowToken(v => !v)}
                             >
-                                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                {showToken ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                             </button>
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-xs font-medium mb-1 block text-slate-600 dark:text-slate-400">
-                            Chat ID <span className="text-red-500">*</span>
-                            <span className="ml-1 font-normal text-slate-400">
-                                (negatif = grup/channel · positif = chat pribadi)
+                        <label htmlFor="setup-channel-chat" className="text-sm font-medium mb-1 block">
+                            Chat ID <span className="font-normal text-muted-foreground">(wajib)</span>
+                            <span className="ml-1 font-normal text-muted-foreground">
+                                (negatif untuk grup/channel, positif untuk chat pribadi)
                             </span>
                         </label>
                         <Input
-                            placeholder="-1001234567890  atau  987654321"
+                            id="setup-channel-chat"
+                            inputMode="numeric"
+                            placeholder="-1001234567890 atau 987654321"
                             value={chatId}
                             onChange={e => setChatId(e.target.value)}
                             className="font-mono"
@@ -239,28 +245,27 @@ export const ChannelStep: React.FC = () => {
                             ? <Loader2 className="h-4 w-4 animate-spin" />
                             : <MessageCircle className="h-4 w-4" />
                         }
-                        Tambah Channel
+                        Tambah channel
                     </Button>
                 </div>
             </div>
 
             {/* ── Active channels list ──────────────────────────────────────── */}
             <div className="space-y-2">
-                <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Active Channels</h4>
+                <h3 className="text-sm font-semibold">Channel yang sudah ditambahkan</h3>
                 {channels.length === 0 ? (
-                    <div className="text-center p-4 border border-dashed rounded text-sm text-slate-400">
-                        No channels configured.
+                    <div className="text-center p-4 border border-dashed rounded text-sm text-muted-foreground">
+                        Belum ada channel. Isi formulir di atas untuk menambahkan bot Telegram.
                     </div>
                 ) : (
                     channels.map(ch => {
                         const label = ch.config?.name ?? `Channel #${ch.id}`;
-                        const maskedToken = ch.config?.bot_token
-                            ? ch.config.bot_token.slice(0, 10) + '••••••••'
-                            : '—';
+                        // The API already masks credentials
+                        const maskedToken = ch.config?.bot_token ?? '-';
                         return (
                             <div
                                 key={ch.id}
-                                className="flex items-center justify-between p-3 border rounded-md bg-white dark:bg-slate-900 shadow-sm gap-3"
+                                className="flex items-center justify-between flex-wrap p-3 border rounded-md bg-card gap-3"
                             >
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full shrink-0">
@@ -269,14 +274,14 @@ export const ChannelStep: React.FC = () => {
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2">
                                             <p className="font-medium text-sm truncate">{label}</p>
-                                            <Badge variant="outline" className="text-[10px] h-5 shrink-0">
+                                            <Badge variant="outline" className="shrink-0">
                                                 {ch.channel_type}
                                             </Badge>
                                         </div>
-                                        <p className="text-xs text-slate-500 font-mono">
-                                            Chat ID: {ch.config?.chat_id ?? '—'}
+                                        <p className="text-xs text-muted-foreground font-mono">
+                                            Chat ID: {ch.config?.chat_id ?? '-'}
                                         </p>
-                                        <p className="text-xs text-slate-400 font-mono">
+                                        <p className="text-xs text-muted-foreground font-mono">
                                             Token: {maskedToken}
                                         </p>
                                     </div>
@@ -284,10 +289,14 @@ export const ChannelStep: React.FC = () => {
 
                                 <div className="flex items-center gap-2 shrink-0">
                                     {testStatus[ch.id] === 'ok' && (
-                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                        <span className="inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400">
+                                            <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Terkirim
+                                        </span>
                                     )}
                                     {testStatus[ch.id] === 'fail' && (
-                                        <XCircle className="h-4 w-4 text-red-500" />
+                                        <span className="inline-flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
+                                            <XCircle className="h-4 w-4" aria-hidden="true" /> Gagal
+                                        </span>
                                     )}
                                     <Button
                                         size="sm"
@@ -297,18 +306,19 @@ export const ChannelStep: React.FC = () => {
                                         className="gap-1"
                                     >
                                         {testing === ch.id
-                                            ? <Loader2 className="h-3 w-3 animate-spin" />
-                                            : <Send className="h-3 w-3" />
+                                            ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                            : <Send className="h-4 w-4" aria-hidden="true" />
                                         }
-                                        Test
+                                        Kirim tes
                                     </Button>
                                     <Button
-                                        size="sm"
+                                        size="icon"
                                         variant="ghost"
-                                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                        className="text-red-600 dark:text-red-400"
+                                        aria-label={`Hapus channel ${label}`}
                                         onClick={() => removeChannel(ch.id, label)}
                                     >
-                                        <Trash2 className="h-4 w-4" />
+                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                                     </Button>
                                 </div>
                             </div>

@@ -77,7 +77,7 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
     const handleSearch = async () => {
         const q = search.trim();
         if (q.length < 2) {
-            toast.error('Minimal 2 karakter untuk pencarian');
+            toast.error('Ketik minimal 2 huruf untuk mencari');
             return;
         }
         setSearching(true);
@@ -90,12 +90,12 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
             setResults(data);
             if (data.length === 0) {
                 toast.info(`Tidak ada hasil untuk "${q}"`, {
-                    description: 'Coba kata kunci yang berbeda, misalnya nama kecamatan atau kabupaten.',
+                    description: 'Periksa ejaannya atau coba nama kecamatan lain.',
                 });
             }
         } catch (e: any) {
             toast.error('Pencarian gagal', {
-                description: e?.message ?? 'Tidak dapat terhubung ke backend.',
+                description: e?.message ?? 'Server tidak merespons.',
             });
         } finally {
             setSearching(false);
@@ -115,11 +115,11 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
         } catch (e: any) {
             if (e?.status === 409) {
                 toast.error('Lokasi sudah ada', {
-                    description: `${loc.name} sudah terdaftar dalam daftar monitoring.`,
+                    description: `${loc.name} sudah ada di daftar pantauan.`,
                 });
             } else {
                 toast.error('Gagal menambahkan lokasi', {
-                    description: e?.message ?? 'Terjadi kesalahan tidak diketahui.',
+                    description: e?.message ?? 'Server tidak merespons.',
                 });
             }
         } finally {
@@ -134,7 +134,7 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
             toast.success(`Lokasi "${name}" dihapus`);
         } catch (e: any) {
             toast.error('Gagal menghapus lokasi', {
-                description: e?.message ?? 'Terjadi kesalahan.',
+                description: e?.message ?? 'Server tidak merespons.',
             });
         }
     };
@@ -142,18 +142,21 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
     return (
         <div className="space-y-6">
             {/* Search input */}
+            <label htmlFor="setup-location-search" className="text-sm font-medium block">Cari kecamatan yang ingin dipantau</label>
             <div className="flex gap-2">
                 <Input
-                    placeholder="Cari kecamatan (min. 2 karakter, contoh: Wiradesa)"
+                    id="setup-location-search"
+                    placeholder="Minimal 2 huruf, misalnya Wiradesa"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 />
-                <Button onClick={handleSearch} disabled={searching}>
+                <Button onClick={handleSearch} disabled={searching} className="shrink-0">
                     {searching
-                        ? <Loader2 className="h-4 w-4 animate-spin" />
-                        : <Search className="h-4 w-4" />
+                        ? <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
+                        : <Search className="h-4 w-4 mr-2" aria-hidden="true" />
                     }
+                    Cari
                 </Button>
             </div>
 
@@ -163,7 +166,7 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
                     {results.map(res => (
                         <div
                             key={res.code}
-                            className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex justify-between items-center gap-2"
+                            className="p-2 flex justify-between items-center gap-2"
                         >
                             <div className="text-sm min-w-0">
                                 <p className="font-medium truncate">{res.name}</p>
@@ -171,15 +174,16 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
                             </div>
                             <Button
                                 size="sm"
-                                variant="ghost"
+                                variant="outline"
                                 disabled={adding === res.code}
                                 onClick={() => addLocation(res)}
                                 className="shrink-0"
                             >
                                 {adding === res.code
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <Plus className="h-4 w-4" />
+                                    ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" aria-hidden="true" />
+                                    : <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
                                 }
+                                Pantau
                             </Button>
                         </div>
                     ))}
@@ -188,37 +192,36 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
 
             {/* Selected locations list */}
             <div className="space-y-2">
-                <h4 className="text-sm font-medium text-slate-500 uppercase tracking-wider">Selected Locations</h4>
+                <h3 className="text-sm font-semibold">Lokasi yang dipantau</h3>
                 {locations.length === 0 ? (
-                    <div className="text-center p-4 border border-dashed rounded text-sm text-slate-400">
-                        No locations added. Search above to add one.
+                    <div className="text-center p-4 border border-dashed rounded text-sm text-muted-foreground">
+                        Belum ada lokasi. Cari kecamatan di atas, lalu tekan Pantau.
                     </div>
                 ) : (
                     locations.map(loc => (
                         <div
                             key={loc.id}
-                            className="flex items-center justify-between p-3 border rounded-md bg-white dark:bg-slate-900 shadow-sm"
+                            className="flex items-center justify-between p-3 border rounded-md bg-card"
                         >
                             <div className="flex items-center gap-3 min-w-0">
-                                <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded-full shrink-0">
-                                    <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                </div>
+                                <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                                 <div className="min-w-0">
                                     <p className="font-medium text-sm truncate">
                                         {loc.label || loc.subdistrict_name}
                                     </p>
-                                    <p className="text-xs text-slate-500 truncate">
+                                    <p className="text-xs text-muted-foreground truncate">
                                         {loc.district_name}, {loc.province_name}
                                     </p>
                                 </div>
                             </div>
                             <Button
-                                size="sm"
+                                size="icon"
                                 variant="ghost"
-                                className="text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                className="text-red-600 dark:text-red-400 shrink-0"
+                                aria-label={`Hapus lokasi ${loc.label || loc.subdistrict_name}`}
                                 onClick={() => removeLocation(loc.id, loc.label || loc.subdistrict_name)}
                             >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </Button>
                         </div>
                     ))

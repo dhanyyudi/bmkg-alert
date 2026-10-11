@@ -3,11 +3,46 @@
 @tailwind utilities;
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
+  /* RGB channels so Tailwind opacity modifiers work. Contrast pairs are
+     checked against WCAG AA in both themes: muted-foreground is >= 4.5:1 on
+     background, card and muted; input border and ring are >= 3:1 on their surface. */
+  :root {
+    --background: 255 255 255;
+    --foreground: 15 23 42;
+    --muted: 241 245 249;
+    --muted-foreground: 71 85 105;
+    --card: 255 255 255;
+    --card-foreground: 15 23 42;
+    --accent: 241 245 249;
+    --accent-foreground: 15 23 42;
+    --secondary: 241 245 249;
+    --secondary-foreground: 15 23 42;
+    --border: 226 232 240;
+    --input: 100 116 139;
+    --ring: 3 105 161;
   }
-  
+
+  .dark {
+    --background: 15 23 42;
+    --foreground: 241 245 249;
+    --muted: 51 65 85;
+    --muted-foreground: 203 213 225;
+    --card: 30 41 59;
+    --card-foreground: 241 245 249;
+    --accent: 51 65 85;
+    --accent-foreground: 241 245 249;
+    --secondary: 51 65 85;
+    --secondary-foreground: 241 245 249;
+    --border: 51 65 85;
+    --input: 100 116 139;
+    --ring: 56 189 248;
+  }
+
+  * {
+    @apply border-border;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+    @apply bg-slate-50 text-foreground dark:bg-slate-950;
   }
 }

@@ -11,11 +11,11 @@ const { title } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="id">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="description" content="BMKG Alert System Dashboard" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="description" content="Pemantau peringatan dini cuaca BMKG dengan notifikasi per kecamatan." />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
 		<title>{title} - BMKG Alert</title>
@@ -29,14 +29,17 @@ const { title } = Astro.props;
 			})();
 		</script>
 	</head>
-	<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex">
-        <Sidebar client:load pathname={Astro.url.pathname} />  <!-- Navigation Sidebar -->
-        <Toaster client:load position="top-right" />
-		
-        <main class="flex-1 min-w-0 overflow-y-auto h-screen flex flex-col">
-            <div class="p-4 md:p-6 flex flex-col flex-1 min-h-0">
-			    <slot />
-            </div>
+	<body class="min-h-dvh md:flex">
+		<a href="#konten" class="sr-only focus:not-sr-only focus:fixed focus:z-[60] focus:top-2 focus:left-2 focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:ring-2 focus:ring-ring">
+			Lompat ke konten
+		</a>
+		<Sidebar client:load pathname={Astro.url.pathname} />
+		<Toaster client:load position="top-right" />
+
+		<main id="konten" class="flex-1 min-w-0 pt-14 md:pt-0 md:h-screen md:overflow-y-auto flex flex-col">
+			<div class="p-4 md:p-6 flex flex-col flex-1">
+				<slot />
+			</div>
 		</main>
 	</body>
 </html>

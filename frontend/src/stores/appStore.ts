@@ -1,5 +1,4 @@
 import { atom, map } from 'nanostores';
-import { persistentMap } from '@nanostores/persistent';
 import { api, setAdminToken, clearAdminToken, getAdminToken } from '@/lib/api';
 
 // Types (mirrored from backend models)
@@ -8,11 +7,6 @@ export type EngineStatus = {
   last_poll: string | null;
   last_poll_result: string | null;
   demo_mode: boolean;
-};
-
-export type SystemConfig = {
-  bmkg_api_url: string;
-  setup_completed: boolean;
 };
 
 export type Area = {
@@ -37,6 +31,8 @@ export type Alert = {
   is_expired: boolean;
 };
 
+export type LoadState = 'loading' | 'ready' | 'error';
+
 // Stores
 export const engineStatus = map<EngineStatus>({
   running: false,
@@ -45,14 +41,11 @@ export const engineStatus = map<EngineStatus>({
   demo_mode: false,
 });
 
-export const systemConfig = map<SystemConfig>({
-  bmkg_api_url: '',
-  setup_completed: false,
-});
+export const engineState = atom<LoadState>('loading');
 
 export const activeAlerts = atom<Alert[]>([]);
 
-export const isLoading = atom<boolean>(false);
+export const alertsState = atom<LoadState>('loading');
 
 // Admin auth state
 export const isAdmin = atom<boolean>(!!getAdminToken());
@@ -79,7 +72,6 @@ export function adminLogout(): void {
 // Actions
 export async function fetchEngineStatus() {
   try {
-    // Alert engine returns { running: boolean, last_poll: string|null, last_poll_result: string|null }
     const res = await api.get<{ running: boolean; last_poll: string | null; last_poll_result: string | null; demo_mode?: boolean }>('/engine/status');
     engineStatus.set({
       running: res.running === true,
@@ -87,8 +79,10 @@ export async function fetchEngineStatus() {
       last_poll_result: res.last_poll_result,
       demo_mode: res.demo_mode === true,
     });
+    engineState.set('ready');
   } catch (e) {
     console.error('Failed to fetch engine status', e);
+    engineState.set('error');
   }
 }
 
@@ -96,28 +90,10 @@ export async function fetchActiveAlerts() {
   try {
     const res = await api.get<{ data: Alert[] }>('/nowcast/active');
     activeAlerts.set(res.data ?? []);
+    alertsState.set('ready');
   } catch (e) {
     console.error('Failed to fetch active alerts', e);
+    // Keep the last good list on screen during a refresh failure
+    alertsState.set('error');
   }
 }
-
-export async function fetchConfig() {
-  try {
-    const res = await api.get<{ data: any }>('/config');
-    systemConfig.set(res.data);
-  } catch (e) {
-    console.error('Failed to fetch config', e);
-  }
-}
-
-export type UserSettings = {
-  locations: string; // JSON string of string[]
-  telegram_bot_token: string;
-  telegram_chat_id: string;
-};
-
-export const settingsStore = persistentMap<UserSettings>('bmkg_settings:', {
-  locations: '["Jakarta", "Yogyakarta"]',
-  telegram_bot_token: '',
-  telegram_chat_id: '',
-});
