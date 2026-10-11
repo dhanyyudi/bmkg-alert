@@ -3,6 +3,9 @@ line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
+# CI installs ruff unpinned, and newer releases enable far more rules by default.
+# Pin the set this codebase was written against.
+select = ["E4", "E7", "E9", "F"]
 # E402: module-level import not at top (fixed in main.py; ignore elsewhere for deferred imports)
 # F401: imported but unused (pre-existing; not a runtime bug)
 # F841: local variable assigned but never used (pre-existing; not a runtime bug)
