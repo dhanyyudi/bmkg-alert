@@ -3,7 +3,7 @@
 Real-time Indonesian weather warning system powered by BMKG Nowcast data.
 Monitor specific locations (kecamatan level) and receive instant notifications via Telegram, Discord, Slack, Email, or Webhook when severe weather approaches.
 
-**[Live Demo →](https://bmkg-alert.dhanypedia.it.com/)** · Try the 24-hour Telegram trial from the demo site.
+**[Live Demo →](https://bmkg-alert.dhanypedia.com/)** · Try the 24-hour Telegram trial from the demo site.
 
 ---
 
@@ -35,7 +35,7 @@ Monitor specific locations (kecamatan level) and receive instant notifications v
 - **Try Mode** — 24-hour Telegram trial for visitors (no deployment needed)
 - **Demo Mode** — run a public read-only demo with admin bypass
 - **Quiet Hours** — suppress notifications during configured hours
-- **Export / Import** — back up and restore full configuration as JSON
+- **Export / Import** — export settings, locations and channels as JSON; import restores the settings
 - **Self-hosted** — runs entirely on your own server, no cloud required
 
 ---
@@ -92,7 +92,7 @@ All settings are in `.env` (copy from `.env.example`):
 | `TELEGRAM_CHAT_ID` | For Telegram | Your chat/group ID |
 | `DEMO_MODE` | No | `true` = read-only public demo |
 | `DB_PATH` | No | SQLite database path (default: `data/bmkg_alert.db`) |
-| `BMKG_API_URL` | No | BMKG API base URL |
+| `BMKG_API_URL` | No | BMKG API base URL (default: `https://bmkg-api.dhanypedia.com`) |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING` (default: `INFO`) |
 | `TZ` | No | Timezone (default: `Asia/Jakarta`) |
 
@@ -177,10 +177,10 @@ npm run dev
 
 ## API Documentation
 
-FastAPI generates interactive docs automatically:
+FastAPI generates the API reference automatically:
 
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
+- **ReDoc**: `http://localhost:8000/docs`
+- **OpenAPI schema**: `http://localhost:8000/openapi.json`
 
 Key endpoints:
 
@@ -209,14 +209,14 @@ Key endpoints:
 | Frontend | Astro, React, Tailwind CSS, MapLibre GL |
 | Backend | Python, FastAPI, aiosqlite (SQLite) |
 | Notifications | Telegram Bot API, Discord/Slack webhooks, SMTP |
-| Data source | [bmkg-restapi.vercel.app](https://bmkg-restapi.vercel.app) — BMKG Nowcast & Prakiraan Cuaca |
+| Data source | [bmkg-api.dhanypedia.com](https://bmkg-api.dhanypedia.com) — BMKG Nowcast & Prakiraan Cuaca |
 | Deployment | Docker, GitHub Actions, GHCR |
 
 ---
 
 ## Attribution
 
-Weather data is sourced from **[bmkg-restapi.vercel.app](https://bmkg-restapi.vercel.app)**, an unofficial REST API wrapper for [BMKG](https://www.bmkg.go.id/) (Badan Meteorologi, Klimatologi, dan Geofisika) open data.
+Weather data is sourced from **[bmkg-api.dhanypedia.com](https://bmkg-api.dhanypedia.com)**, an unofficial REST API wrapper for [BMKG](https://www.bmkg.go.id/) (Badan Meteorologi, Klimatologi, dan Geofisika) open data.
 
 ---
 

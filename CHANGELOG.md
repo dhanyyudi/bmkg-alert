@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- BMKG data source moved to `https://bmkg-api.dhanypedia.com`; the old Vercel host no longer responds
+- Weather forecasts are served through `BMKG_API_URL` instead of the bundled parser
+- Interface text is Indonesian throughout; navigation has a labelled menu bar on phones
+- Channel credentials are masked in API responses, and config export needs admin rights in demo mode
+
+### Fixed
+- Alerts were marked expired by string comparison, often in the same poll that created them
+- "Berpotensi tsunami" badge appeared on every earthquake, including "Tidak berpotensi tsunami"
+- Telegram, Slack and email messages showed `Severity.MODERATE` instead of the level
+- Discord and webhook notifications failed for every real alert
+- Trial subscribers received the same warning on every poll cycle
+- A kecamatan name matched as a fragment of a longer name (for example "Agung" in "Kota Agung")
+- Locations and channels with history could not be deleted
+- Weather page failed for monitored locations (kecamatan codes) and for every forecast request
+- Bot tokens were written to the container log by the HTTP client
+- The latest earthquake was announced again after every restart
+- `severity_threshold` had no effect; trial and expiry handling was skipped when no location was configured
+
 ## [1.0.0] - 2026-02-19
 
 Initial public release.
