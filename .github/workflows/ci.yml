@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+    tags: ["v*"]
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   backend:
@@ -33,11 +37,10 @@ jobs:
       - name: Type check (basic import test)
         run: python -c "from app.main import app; print('Import OK')"
 
-      # The bundled BMKG API tests (earthquake/weather/wilayah/integration) are stale and not run here yet
-      - name: Alert pipeline tests
+      - name: Tests
         run: |
           pip install pytest pytest-asyncio
-          pytest tests/test_engine.py tests/test_matcher.py tests/test_notifications.py tests/test_alert_regressions.py
+          pytest
 
   frontend:
     name: Frontend checks
@@ -59,7 +62,45 @@ jobs:
         run: npm ci
 
       - name: Type check
-        run: npx astro check 2>&1 || true
+        run: npm run check
 
       - name: Build
         run: npm run build
+
+  # Images are only published from a push that passed every check above
+  publish:
+    name: Publish ${{ matrix.component }} image
+    needs: [backend, frontend]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [backend, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-${{ matrix.component }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=sha,prefix=
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.component }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

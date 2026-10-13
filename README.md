@@ -1,7 +1,7 @@
 # BMKG Alert
 
 Real-time Indonesian weather warning system powered by BMKG Nowcast data.
-Monitor specific locations (kecamatan level) and receive instant notifications via Telegram, Discord, Slack, Email, or Webhook when severe weather approaches.
+Monitor specific locations (a kecamatan or a whole kabupaten/kota) and receive instant notifications via Telegram, Discord, Slack, Email, or Webhook when severe weather approaches.
 
 **[Live Demo →](https://bmkg-alert.dhanypedia.com/)** · Try the 24-hour Telegram trial from the demo site.
 
@@ -27,15 +27,16 @@ Monitor specific locations (kecamatan level) and receive instant notifications v
 ## Features
 
 - **Real-time monitoring** — polls BMKG Nowcast every configurable interval
-- **Precise location matching** — kecamatan (subdistrict) level monitoring
+- **Precise location matching** — monitor a kecamatan, or a kabupaten/kota through its kecamatan; coordinates keep same-named places in other provinces apart
 - **Multi-channel notifications** — Telegram, Discord, Slack, Email, Webhook
 - **Warning Map** — visualize BMKG polygon areas on an interactive map
 - **Alert History** — full log with severity filtering and delivery tracking
 - **Setup Wizard** — guided 5-step first-time configuration
 - **Try Mode** — 24-hour Telegram trial for visitors (no deployment needed)
 - **Demo Mode** — run a public read-only demo with admin bypass
+- **Admin lock** — once `ADMIN_PASSWORD` is set, every settings change needs it
 - **Quiet Hours** — suppress notifications during configured hours
-- **Export / Import** — export settings, locations and channels as JSON; import restores the settings
+- **Export / Import** — back up settings, locations and channels as JSON and restore them
 - **Self-hosted** — runs entirely on your own server, no cloud required
 
 ---
@@ -87,12 +88,14 @@ All settings are in `.env` (copy from `.env.example`):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ADMIN_PASSWORD` | Yes | Admin login password (change from default!) |
+| `ADMIN_PASSWORD` | Yes | Admin password. Once changed from `changeme`, every settings change needs it. With the default, settings are open to anyone who can reach the instance and admin login is disabled |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | For Telegram | Your chat/group ID |
 | `DEMO_MODE` | No | `true` = read-only public demo |
 | `DB_PATH` | No | SQLite database path (default: `data/bmkg_alert.db`) |
-| `BMKG_API_URL` | No | BMKG API base URL (default: `https://bmkg-api.dhanypedia.com`) |
+| `BMKG_API_URL` | No | BMKG API base URL (default: `https://bmkg-api.dhanypedia.com`). All BMKG data comes from here |
+| `CLIENT_IP_HEADER` | No | Header your reverse proxy sets to the visitor's address, for rate limits (`CF-Connecting-IP` behind Cloudflare, `X-Real-IP` behind nginx) |
+| `CORS_ORIGINS` | No | Origins allowed to call the API directly; the bundled frontend needs none |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING` (default: `INFO`) |
 | `TZ` | No | Timezone (default: `Asia/Jakarta`) |
 
@@ -198,7 +201,9 @@ Key endpoints:
 | `POST` | `/api/v1/channels` | Add channel |
 | `POST` | `/api/v1/trial/register` | Register 24h Telegram trial |
 | `DELETE` | `/api/v1/trial/{id}?chat_id=` | Cancel trial (requires owner's chat_id) |
-| `GET` | `/api/v1/weather/{adm4}` | BMKG weather forecast |
+| `GET` | `/api/v1/nowcast/active` | Active BMKG warnings (from `BMKG_API_URL`) |
+| `GET` | `/api/v1/weather/{adm4}` | BMKG weather forecast (from `BMKG_API_URL`) |
+| `GET` | `/api/v1/health` | Engine, database and BMKG API status |
 
 ---
 

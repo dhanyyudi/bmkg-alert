@@ -2,13 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.1.0] - 2026-10-13
 
 ### Changed
 - BMKG data source moved to `https://bmkg-api.dhanypedia.com`; the old Vercel host no longer responds
-- Weather forecasts are served through `BMKG_API_URL` instead of the bundled parser
+- All BMKG data (warnings, earthquakes, forecasts, regions) is read from `BMKG_API_URL`; the bundled copy of the BMKG API and its 2019 region data are gone
+- The engine reads every active warning in one request (`/v1/nowcast/warnings`, API 1.4.0), with a fallback for older APIs
+- A kabupaten/kota can be monitored: it matches when any of its kecamatan is named in a warning
+- Once `ADMIN_PASSWORD` is changed from the default, settings changes need it on private instances too
 - Interface text is Indonesian throughout; navigation has a labelled menu bar on phones
-- Channel credentials are masked in API responses, and config export needs admin rights in demo mode
+- Channel credentials are masked in API responses; chat IDs are hidden from demo visitors
+- Config import restores locations and channels, not only settings
+- Quiet hours honour minutes and the `TZ` time zone
+- Cross-origin API access is off unless `CORS_ORIGINS` is set; pages send basic security headers
+- Images are published only after the checks pass; the frontend image runs as a non-root user
 
 ### Fixed
 - Alerts were marked expired by string comparison, often in the same poll that created them
@@ -16,12 +23,18 @@ All notable changes to this project will be documented in this file.
 - Telegram, Slack and email messages showed `Severity.MODERATE` instead of the level
 - Discord and webhook notifications failed for every real alert
 - Trial subscribers received the same warning on every poll cycle
-- A kecamatan name matched as a fragment of a longer name (for example "Agung" in "Kota Agung")
+- A kecamatan name matched as a fragment of a longer name, and matched its namesakes in other provinces
+- Locations added from Settings were stored without kabupaten and province; kabupaten-level locations never matched
 - Locations and channels with history could not be deleted
-- Weather page failed for monitored locations (kecamatan codes) and for every forecast request
+- Weather page failed for monitored locations and for every forecast request
 - Bot tokens were written to the container log by the HTTP client
-- The latest earthquake was announced again after every restart
+- The latest earthquake was announced again after every restart, and twice to the generic webhook
 - `severity_threshold` had no effect; trial and expiry handling was skipped when no location was configured
+- Trial rate limits trusted a client-supplied `X-Forwarded-For`; admin login had no rate limit
+- The activity log grew without bound (now 30 days)
+
+### Removed
+- The "all clear" notification listed for 1.0.0 was never sent, and is not planned: BMKG often follows an expired warning with a new one, so "conditions are safe" would be wrong
 
 ## [1.0.0] - 2026-02-19
 
@@ -33,7 +46,7 @@ Initial public release.
 - Alert engine that polls BMKG Nowcast data on a configurable interval
 - Location matching at kecamatan (subdistrict) level with kabupaten fallback
 - Deduplication — each alert is only sent once per location per event
-- Auto-expiry — mark alerts as expired and send "all clear" notification
+- Auto-expiry — mark alerts as expired
 - Configurable polling interval, quiet hours, and severity threshold
 
 **Dashboard**
