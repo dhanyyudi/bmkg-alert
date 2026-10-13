@@ -142,7 +142,7 @@ async def register_trial(body: TrialRegister, request: Request):
     # Log activity
     await db.execute(
         "INSERT INTO activity_log (event_type, message) VALUES (?, ?)",
-        ("trial_registered", f"Trial registered for chat {body.chat_id}: {location_label}"),
+        ("trial_registered", f"Trial registered: {location_label}"),
     )
 
     return {
@@ -221,7 +221,7 @@ async def cancel_trial(trial_id: int, chat_id: str = Query(..., description="Cha
     # Log activity
     await db.execute(
         "INSERT INTO activity_log (event_type, message) VALUES (?, ?)",
-        ("trial_cancelled", f"Trial cancelled for chat {row['telegram_chat_id']}"),
+        ("trial_cancelled", f"Trial cancelled: {row['subdistrict_name']}"),
     )
 
     return {"success": True}

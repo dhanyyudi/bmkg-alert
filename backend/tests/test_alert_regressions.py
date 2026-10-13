@@ -104,6 +104,47 @@ class TestChannelSecrets:
         assert "secret" not in json.dumps(config)
         assert config["chat_id"] == "42" and config["name"] == "Rumah"
 
+    def test_personal_identifiers_are_hidden_from_demo_visitors(self):
+        row = {
+            "id": 1,
+            "channel_type": "telegram",
+            "config": json.dumps({"bot_token": "1234567890:secret", "chat_id": "822700000", "name": "Rumah"}),
+        }
+        config = _public_view(row, show_personal=False)["config"]
+        assert "822700000" not in json.dumps(config)
+        assert config["name"] == "Rumah"
+
+    @pytest.mark.asyncio
+    async def test_demo_visitor_and_admin_views(self, state, monkeypatch):
+        import httpx
+
+        from app import database
+        from app.config import settings
+        from app.main import app
+
+        monkeypatch.setattr(database, "_DB_INSTANCE", state._db)
+        monkeypatch.setattr(settings, "demo_mode", True)
+        monkeypatch.setattr(settings, "admin_password", "test-admin-password")
+        await state._db.execute(
+            "INSERT INTO notification_channels (channel_type, enabled, config) VALUES ('telegram', 1, ?)",
+            (json.dumps({"bot_token": "1234567890:secret", "chat_id": "822700000", "name": "Rumah"}),),
+        )
+        await state.log_activity("trial_registered", "Trial registered for chat 391047285: Wiradesa")
+
+        admin = {"X-Admin-Token": "test-admin-password"}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            visitor_channels = (await client.get("/api/v1/channels")).text
+            visitor_one = (await client.get("/api/v1/channels/1")).text
+            visitor_activity = (await client.get("/api/v1/activity")).text
+            admin_channels = (await client.get("/api/v1/channels", headers=admin)).text
+            admin_activity = (await client.get("/api/v1/activity", headers=admin)).text
+
+        for body in (visitor_channels, visitor_one):
+            assert "822700000" not in body and "1234567890:secret" not in body
+        assert "391047285" not in visitor_activity and "Wiradesa" in visitor_activity
+        assert "822700000" in admin_channels and "1234567890:secret" not in admin_channels
+        assert "391047285" in admin_activity
+
 
 @pytest.fixture
 async def state(tmp_path):

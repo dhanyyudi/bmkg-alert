@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.database import get_database
-from app.dependencies import require_write_allowed
+from app.dependencies import can_view_private, require_write_allowed
 from app.models import ChannelCreate, ChannelUpdate
 from app.notifications.telegram import TelegramSender
 from app.notifications.discord import DiscordSender
@@ -21,29 +21,34 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 # Credentials never leave the API in full: these routes are readable without
 # auth (including on a public demo), and senders read the stored row directly.
 _SECRET_KEYS = ("bot_token", "webhook_url", "smtp_password", "secret", "headers")
+# Not credentials, but they identify a person; a public demo hides them from visitors.
+_PERSONAL_KEYS = ("chat_id", "to_email", "smtp_user")
 _MASK = "••••••••"
 
 
-def _public_view(row: Any) -> dict:
-    """Return a channel row with its config parsed and credentials masked."""
+def _public_view(row: Any, show_personal: bool = True) -> dict:
+    """Return a channel row with its config parsed, credentials masked,
+    and personal identifiers masked unless `show_personal`."""
     channel = dict(row)
     if isinstance(channel.get("config"), str):
         channel["config"] = json.loads(channel["config"])
-    masked = {}
-    for key, value in (channel.get("config") or {}).items():
-        masked[key] = _MASK if key in _SECRET_KEYS and value else value
-    channel["config"] = masked
+    hidden = _SECRET_KEYS if show_personal else _SECRET_KEYS + _PERSONAL_KEYS
+    channel["config"] = {
+        key: _MASK if key in hidden and value else value
+        for key, value in (channel.get("config") or {}).items()
+    }
     return channel
 
 
 @router.get("")
-async def list_channels():
+async def list_channels(request: Request):
     """List all notification channels."""
     db = get_database()
     rows = await db.fetch_all(
         "SELECT * FROM notification_channels ORDER BY created_at DESC"
     )
-    return {"data": [_public_view(row) for row in rows]}
+    show_personal = can_view_private(request)
+    return {"data": [_public_view(row, show_personal) for row in rows]}
 
 
 @router.post("", status_code=201, dependencies=[Depends(require_write_allowed)])
@@ -67,7 +72,7 @@ async def create_channel(body: ChannelCreate):
 
 
 @router.get("/{channel_id}")
-async def get_channel(channel_id: int):
+async def get_channel(channel_id: int, request: Request):
     """Get a specific channel."""
     db = get_database()
     row = await db.fetch_one(
@@ -75,7 +80,7 @@ async def get_channel(channel_id: int):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Channel not found")
-    return {"data": _public_view(row)}
+    return {"data": _public_view(row, can_view_private(request))}
 
 
 @router.patch("/{channel_id}", dependencies=[Depends(require_write_allowed)])

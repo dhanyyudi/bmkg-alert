@@ -71,6 +71,15 @@ def _is_admin(request: Request) -> bool:
     return False
 
 
+def can_view_private(request: Request) -> bool:
+    """Whether the caller may see personal identifiers (chat IDs, email addresses).
+
+    A public demo shows them to the admin only; a private instance has no
+    visitors to hide them from.
+    """
+    return not settings.demo_mode or _is_admin(request)
+
+
 def require_write_allowed(request: Request) -> None:
     """Block write operations when demo_mode is enabled.
 
