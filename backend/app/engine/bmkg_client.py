@@ -1,4 +1,8 @@
-"""BMKG REST API client — async HTTP with httpx."""
+"""BMKG REST API client — async HTTP with httpx.
+
+Every BMKG datum this app shows or acts on comes through here, from the API
+at BMKG_API_URL (https://github.com/dhanyyudi/bmkg-api).
+"""
 
 from __future__ import annotations
 
@@ -7,7 +11,7 @@ from typing import Any, Protocol, runtime_checkable
 import httpx
 import structlog
 
-from app.models import NowcastDetailResponse, NowcastListResponse
+from app.models import ActiveWarning, NowcastDetailResponse, NowcastListResponse
 
 logger = structlog.get_logger()
 
@@ -18,11 +22,8 @@ REQUEST_TIMEOUT = 30.0
 class BMKGClient(Protocol):
     """Protocol for BMKG API client — enables test doubles."""
 
-    async def get_nowcast_list(self) -> NowcastListResponse: ...
-    async def get_nowcast_detail(self, code: str) -> NowcastDetailResponse: ...
-    async def get_weather(self, adm4_code: str) -> dict[str, Any]: ...
-    async def search_wilayah(self, query: str) -> dict[str, Any]: ...
-    async def get_provinces(self) -> dict[str, Any]: ...
+    async def get_warnings(self) -> list[ActiveWarning]: ...
+    async def get_json(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]: ...
     async def check_health(self) -> bool: ...
 
 
@@ -48,52 +49,55 @@ class HttpBMKGClient:
             await self._client.aclose()
             self._client = None
 
-    async def get_nowcast_list(self) -> NowcastListResponse:
-        """Fetch all active nowcast warnings."""
+    async def get_json(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """GET a JSON document from the API; raises httpx.HTTPError on failure."""
         client = await self._get_client()
-        logger.info("bmkg_api_request", endpoint="/v1/nowcast")
-        response = await client.get("/v1/nowcast")
-        response.raise_for_status()
-        data = response.json()
-        logger.info(
-            "bmkg_api_response",
-            endpoint="/v1/nowcast",
-            count=data.get("meta", {}).get("count", 0),
-        )
-        return NowcastListResponse(**data)
-
-    async def get_nowcast_detail(self, code: str) -> NowcastDetailResponse:
-        """Fetch detail for a specific nowcast warning."""
-        client = await self._get_client()
-        endpoint = f"/v1/nowcast/{code}"
-        logger.debug("bmkg_api_request", endpoint=endpoint)
-        response = await client.get(endpoint)
-        response.raise_for_status()
-        data = response.json()
-        # The bmkg-api wraps the detail in a "data" key: {"data": {...}, "meta": {...}}
-        inner = data.get("data", data)
-        return NowcastDetailResponse(**inner)
-
-    async def get_weather(self, adm4_code: str) -> dict[str, Any]:
-        """Fetch the 3-day forecast for a kelurahan/desa (ADM4) code."""
-        client = await self._get_client()
-        response = await client.get(f"/v1/weather/{adm4_code}")
+        response = await client.get(path, params=params)
         response.raise_for_status()
         return response.json()
 
-    async def search_wilayah(self, query: str) -> dict[str, Any]:
-        """Search for Indonesian administrative areas."""
-        client = await self._get_client()
-        response = await client.get("/v1/wilayah/search", params={"q": query})
-        response.raise_for_status()
-        return response.json()
+    async def get_warnings(self) -> list[ActiveWarning]:
+        """Every active nowcast warning with its areas, in one request.
 
-    async def get_provinces(self) -> dict[str, Any]:
-        """Get list of all provinces."""
-        client = await self._get_client()
-        response = await client.get("/v1/wilayah/provinces")
-        response.raise_for_status()
-        return response.json()
+        API 1.4.0 added /v1/nowcast/warnings. Older self-hosted APIs answer 404,
+        in which case the list is assembled from the feed and one detail call each.
+        """
+        try:
+            payload = await self.get_json("/v1/nowcast/warnings")
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+            return await self._get_warnings_legacy()
+
+        missing = payload.get("meta", {}).get("missing") or []
+        if missing:
+            # BMKG did not return these details; they are retried on the next cycle
+            logger.warning("bmkg_warnings_missing", codes=missing)
+        warnings = [ActiveWarning(**entry) for entry in payload.get("data", [])]
+        logger.info("bmkg_warnings_fetched", count=len(warnings), missing=len(missing))
+        return warnings
+
+    async def _get_warnings_legacy(self) -> list[ActiveWarning]:
+        feed = NowcastListResponse(**await self.get_json("/v1/nowcast"))
+        warnings: list[ActiveWarning] = []
+        for item in feed.data:
+            try:
+                payload = await self.get_json(f"/v1/nowcast/{item.code}")
+            except httpx.HTTPError as exc:
+                logger.warning("bmkg_detail_failed", code=item.code, error=str(exc))
+                continue
+            detail = NowcastDetailResponse(**payload.get("data", payload))
+            warnings.extend(
+                ActiveWarning(
+                    code=item.code,
+                    province=detail.province or item.province,
+                    published_at=item.published_at,
+                    warning=warning,
+                )
+                for warning in detail.warnings
+            )
+        logger.info("bmkg_warnings_fetched", count=len(warnings), legacy=True)
+        return warnings
 
     async def check_health(self) -> bool:
         """Check if the BMKG API is reachable."""
@@ -101,5 +105,5 @@ class HttpBMKGClient:
             client = await self._get_client()
             response = await client.get("/health")
             return response.status_code == 200
-        except (httpx.HTTPError, Exception):
+        except httpx.HTTPError:
             return False

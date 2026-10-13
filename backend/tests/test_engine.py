@@ -8,11 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.engine.worker import AlertEngine
-from app.models import (
-    Location,
-    NowcastDetailResponse,
-    NowcastListResponse,
-)
+from app.models import ActiveWarning, Location, NowcastDetailResponse
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -27,18 +23,18 @@ class TestAlertEnginePollCycle:
     @pytest.fixture
     def mock_bmkg_client(self):
         client = AsyncMock()
-        # Load fixtures
         list_data = _load_fixture("nowcast_list.json")
-        detail_data = _load_fixture("nowcast_detail.json")
+        detail = NowcastDetailResponse(**_load_fixture("nowcast_detail.json")["data"])
 
-        client.get_nowcast_list.return_value = NowcastListResponse(**list_data)
-        # The API wraps the detail in {"data": ...}; the fixture dates are in the past,
-        # so push the expiry forward to keep the warnings active for the test
-        detail = NowcastDetailResponse(**detail_data["data"])
-        for warning in detail.warnings:
-            warning.is_expired = False
-            warning.expires = datetime.now(timezone.utc) + timedelta(hours=2)
-        client.get_nowcast_detail.return_value = detail
+        # The fixture dates are in the past, so push the expiry forward to keep
+        # the warnings active; every code in the feed carries the same warning
+        active = []
+        for item in list_data["data"]:
+            for warning in detail.warnings:
+                warning.is_expired = False
+                warning.expires = datetime.now(timezone.utc) + timedelta(hours=2)
+                active.append(ActiveWarning(code=item["code"], province=item["province"], warning=warning))
+        client.get_warnings.return_value = active
         return client
 
     @pytest.fixture
@@ -63,6 +59,9 @@ class TestAlertEnginePollCycle:
         state.mark_expired_alerts.return_value = []
         state.get_config_value.return_value = "300"
         state.log_activity.return_value = None
+        state.get_locations_without_point.return_value = []
+        state.get_active_trials.return_value = []
+        state.expire_trials.return_value = []
         return state
 
     @pytest.fixture
@@ -105,7 +104,7 @@ class TestAlertEnginePollCycle:
     @pytest.mark.asyncio
     async def test_poll_cycle_handles_api_error(self, engine, mock_bmkg_client):
         """API errors are handled gracefully."""
-        mock_bmkg_client.get_nowcast_list.side_effect = Exception("API timeout")
+        mock_bmkg_client.get_warnings.side_effect = Exception("API timeout")
 
         await engine.check_now()
         # Should not raise — errors are caught

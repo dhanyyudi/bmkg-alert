@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 
+from app.engine.geo import is_near_warning
 from app.models import Location, MatchResult, WarningInfo
 
 # BMKG lists kecamatan as "..., khususnya di A, B, C." and, in some warnings,
@@ -16,24 +17,38 @@ _LEAD_INS = (" di ", " wilayah ", " ke ")
 _SEGMENT_SPLIT = re.compile(r"[,.;\n]|\sdan\s")
 
 
+def is_district_level(location: Location) -> bool:
+    """A location that stands for a whole kabupaten/kota (code like "34.04")."""
+    return location.subdistrict_code.count(".") == 1
+
+
 def match_locations(
-    warning: WarningInfo, locations: list[Location]
+    warning: WarningInfo,
+    locations: list[Location],
+    district_members: dict[str, set[str]] | None = None,
 ) -> list[MatchResult]:
     """Match a warning against a list of monitored locations.
 
-    Strategy:
-    1. Primary: check if the subdistrict name is one of the names listed in the description
-    2. Fallback: check if the district name appears in the warning area name
+    BMKG lists the affected kecamatan by name in the description, so:
+    1. A kecamatan location matches when its name is listed.
+    2. A kabupaten/kota location matches when any of its kecamatan is listed;
+       `district_members` maps its code to those (lower-cased) names.
+    3. Fallback: the district name appears in a warning area name.
+
+    Name matches also need the location, when its coordinates are known, to lie
+    near the warning polygon: the same name exists in other provinces.
 
     Args:
         warning: The parsed BMKG warning info.
         locations: List of enabled monitored locations.
+        district_members: Kecamatan names per monitored kabupaten/kota code.
 
     Returns:
         List of MatchResult for all matched locations.
     """
     results: list[MatchResult] = []
     listed_names = _listed_names(warning.description)
+    district_members = district_members or {}
 
     # Build a set of area names for kabupaten fallback
     area_names_lower = {area.name.lower() for area in warning.areas}
@@ -42,17 +57,31 @@ def match_locations(
         if not location.enabled:
             continue
 
-        # Primary match: kecamatan name in description
-        subdistrict = _normalize(location.subdistrict_name)
-        if subdistrict and subdistrict in listed_names:
-            results.append(
-                MatchResult(
-                    location=location,
-                    match_type="kecamatan",
-                    matched_text=location.subdistrict_name,
+        near = is_near_warning(location.latitude, location.longitude, warning.areas)
+
+        if is_district_level(location):
+            hits = sorted(district_members.get(location.subdistrict_code, set()) & listed_names)
+            if hits and near:
+                results.append(
+                    MatchResult(
+                        location=location,
+                        match_type="kabupaten",
+                        matched_text=hits[0].title(),
+                    )
                 )
-            )
-            continue
+                continue
+        else:
+            subdistrict = _normalize(location.subdistrict_name)
+            if subdistrict and subdistrict in listed_names:
+                if near:
+                    results.append(
+                        MatchResult(
+                            location=location,
+                            match_type="kecamatan",
+                            matched_text=location.subdistrict_name,
+                        )
+                    )
+                continue
 
         # Fallback: district name in area names
         district = location.district_name.lower()

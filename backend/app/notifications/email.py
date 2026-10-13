@@ -63,7 +63,7 @@ class EmailSender:
             "port": int(channel_config.get("smtp_port") or settings.smtp_port or 587),
             "user": channel_config.get("smtp_user") or settings.smtp_user or "",
             "password": channel_config.get("smtp_password") or settings.smtp_password or "",
-            "from_addr": settings.smtp_from,
+            "from_addr": settings.smtp_from or channel_config.get("smtp_user") or settings.smtp_user or "",
         }
 
     def _build_email(

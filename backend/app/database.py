@@ -11,6 +11,12 @@ logger = structlog.get_logger()
 
 _DB_INSTANCE: DatabaseManager | None = None
 
+# (table, column, definition) for columns introduced after the first release
+_ADDED_COLUMNS = (
+    ("trial_subscriptions", "latitude", "REAL"),
+    ("trial_subscriptions", "longitude", "REAL"),
+)
+
 
 class DatabaseManager:
     """Manages async SQLite connection pool and schema initialization."""
@@ -35,6 +41,13 @@ class DatabaseManager:
         schema_sql = schema_path.read_text(encoding="utf-8")
         conn = await self.get_connection()
         await conn.executescript(schema_sql)
+        # schema.sql only creates missing tables; columns added later need an explicit step
+        for table, column, definition in _ADDED_COLUMNS:
+            cursor = await conn.execute(f"PRAGMA table_info({table})")
+            existing = {row["name"] for row in await cursor.fetchall()}
+            if column not in existing:
+                await conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                logger.info("database_column_added", table=table, column=column)
         await conn.commit()
         logger.info("database_schema_initialized")
 

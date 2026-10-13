@@ -1,71 +1,61 @@
+"""Background poller that announces new earthquakes."""
+
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import NoReturn
+from typing import Any
 
-from app.services.earthquake_service import earthquake_service
-from app.services.notification_service import notification_service
 from app.cache import cache
+from app.models.earthquake import Earthquake
+from app.services.notification_service import notification_service
 
 logger = logging.getLogger(__name__)
 
+POLL_SECONDS = 60
+_LAST_SEEN_KEY = "scheduler:last_processed_eq"
+
+
 class SchedulerService:
     """Background scheduler for periodic tasks."""
-    
+
     def __init__(self):
-        self._tasks = []
+        self._tasks: list[asyncio.Task] = []
         self._running = False
         self._baseline_taken = False
-        
+        self._client: Any = None
+
     @property
-    def running(self):
-        """Check if scheduler is running."""
+    def running(self) -> bool:
         return self._running
-        
-    @property
-    def jobs(self):
-        """Get active tasks."""
-        return self._tasks
-        
-    async def start(self):
-        """Start scheduler."""
+
+    async def start(self, bmkg_client: Any) -> None:
+        """Start the earthquake poller, unless there is nowhere to announce to."""
+        if not notification_service.has_targets():
+            logger.info("Earthquake announcements off: no channel configured in the environment")
+            return
+        self._client = bmkg_client
         self._running = True
         self._tasks.append(asyncio.create_task(self._poll_latest_earthquake()))
         logger.info("Scheduler started")
-        
-    async def stop(self):
-        """Stop scheduler."""
+
+    async def stop(self) -> None:
         self._running = False
         for task in self._tasks:
             task.cancel()
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks = []
         logger.info("Scheduler stopped")
-        
-    async def _poll_latest_earthquake(self):
-        """Poll for latest earthquake every 60 seconds."""
+
+    async def _poll_latest_earthquake(self) -> None:
         logger.info("Starting earthquake poller...")
         while self._running:
             try:
-                # 1. Fetch latest earthquake
-                # We use internal method or just modify get_latest to not use cache validation logic here
-                # But get_latest uses cache. We need to force fetch or check if changed.
-                
-                # Simple strategy:
-                # Get latest from BMKG (this updates cache if TTL expired)
-                # Compare with last processed ID
-                
-                eq, _, _ = await earthquake_service.get_latest()
-                
-                # Check if we already processed this earthquake
-                last_processed_id = await cache.get("scheduler:last_processed_eq")
-                
-                # Identify earthquake by datetime string (as it is unique per event)
+                payload = await self._client.get_json("/v1/earthquake/latest")
+                eq = Earthquake(**payload["data"])
+
+                # An event is identified by its origin time
                 current_id = eq.occurred_at.isoformat()
-                
-                if last_processed_id != current_id:
-                    # Store as processed
-                    await cache.set("scheduler:last_processed_eq", current_id, ttl=86400) # 24h
+                if await cache.get(_LAST_SEEN_KEY) != current_id:
+                    await cache.set(_LAST_SEEN_KEY, current_id, ttl=86400)
 
                     if self._baseline_taken:
                         logger.info(f"New earthquake detected: {eq.region} {eq.magnitude}")
@@ -74,12 +64,12 @@ class SchedulerService:
                 # Without Redis the marker is lost on restart, so the first reading
                 # after startup only sets the baseline and is never announced.
                 self._baseline_taken = True
-                
+
             except Exception as e:
                 logger.error(f"Error in earthquake poller: {e}")
-            
-            # Wait 60 seconds
-            await asyncio.sleep(60)
+
+            await asyncio.sleep(POLL_SECONDS)
+
 
 # Global scheduler
 scheduler = SchedulerService()

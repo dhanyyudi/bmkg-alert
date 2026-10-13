@@ -20,3 +20,6 @@ aiosmtplib>=3.0.0
 aiosqlite>=0.20.0
 structlog>=24.0.0
 
+# Time zone data for quiet hours (slim images may not ship it)
+tzdata>=2024.1
+

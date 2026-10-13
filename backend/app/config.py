@@ -3,58 +3,48 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_ADMIN_PASSWORD = "changeme"
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
-    
+
     # Server
     host: str = Field(default="0.0.0.0", alias="HOST")
-    port: int = Field(default=8099, alias="PORT")
-    
-    # Redis
+    port: int = Field(default=8000, alias="PORT")
+    timezone: str = Field(default="Asia/Jakarta", alias="TZ")
+
+    # Optional Redis for the response cache; falls back to memory when unreachable
     redis_url: str = Field(default="redis://localhost:6379", alias="REDIS_URL")
-    
-    # Rate Limiting
-    rate_limit_anonymous: str = Field(default="30/minute", alias="RATE_LIMIT_ANONYMOUS")
-    rate_limit_authenticated: str = Field(default="120/minute", alias="RATE_LIMIT_AUTHENTICATED")
-    
-    # Cache TTL (seconds)
+
+    # How long BMKG responses are reused, in seconds
     cache_ttl_nowcast: int = Field(default=120, alias="CACHE_TTL_NOWCAST")
     cache_ttl_weather: int = Field(default=900, alias="CACHE_TTL_WEATHER")
-    cache_ttl_earthquake_latest: int = Field(default=60, alias="CACHE_TTL_EARTHQUAKE_LATEST")
-    cache_ttl_earthquake_list: int = Field(default=300, alias="CACHE_TTL_EARTHQUAKE_LIST")
-    
-    # API Keys (comma-separated)
-    api_keys: str = Field(default="", alias="API_KEYS")
+    cache_ttl_earthquake: int = Field(default=120, alias="CACHE_TTL_EARTHQUAKE")
+    cache_ttl_wilayah: int = Field(default=86400, alias="CACHE_TTL_WILAYAH")
 
-    # Admin Auth
-    admin_username: str = Field(default="admin", alias="ADMIN_USERNAME")
-    admin_password: str = Field(default="changeme", alias="ADMIN_PASSWORD")
-    
-    # BMKG Base URLs
-    bmkg_nowcast_base_url: str = Field(
-        default="https://www.bmkg.go.id/alerts/nowcast",
-        alias="BMKG_NOWCAST_BASE_URL"
-    )
-    bmkg_weather_base_url: str = Field(
-        default="https://api.bmkg.go.id/publik",
-        alias="BMKG_WEATHER_BASE_URL"
-    )
-    bmkg_earthquake_base_url: str = Field(
-        default="https://data.bmkg.go.id/DataMKG/TEWS",
-        alias="BMKG_EARTHQUAKE_BASE_URL"
-    )
-    
+    # Admin auth
+    admin_password: str = Field(default=DEFAULT_ADMIN_PASSWORD, alias="ADMIN_PASSWORD")
+
+    # Header a trusted reverse proxy sets to the visitor's address, e.g.
+    # "CF-Connecting-IP" behind Cloudflare or "X-Real-IP" behind nginx.
+    # Empty: use the address of the direct peer.
+    client_ip_header: str = Field(default="", alias="CLIENT_IP_HEADER")
+
+    # Browser origins allowed to call the API directly (comma-separated).
+    # The bundled frontend proxies /api on its own origin and needs none.
+    cors_origins: str = Field(default="", alias="CORS_ORIGINS")
+
     # Logging
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    # Alert system (bmkg-alert)
+    # Alert system
     db_path: str = Field(default="data/bmkg_alert.db", alias="DB_PATH")
     bmkg_api_url: str = Field(default="https://bmkg-api.dhanypedia.com", alias="BMKG_API_URL")
     demo_mode: bool = Field(default=False, alias="DEMO_MODE")
@@ -66,19 +56,32 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str | None = Field(default=None, alias="TELEGRAM_CHAT_ID")
-    
+
     smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_user: str | None = Field(default=None, alias="SMTP_USER")
     smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
-    smtp_from: str = Field(default="noreply@bmkg-alert.com", alias="SMTP_FROM")
-    
+    # Empty: send as SMTP_USER
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
+
     @property
-    def api_key_list(self) -> list[str]:
-        """Return list of valid API keys."""
-        if not self.api_keys:
-            return []
-        return [key.strip() for key in self.api_keys.split(",") if key.strip()]
+    def admin_password_set(self) -> bool:
+        """True once the owner replaced the well-known default password."""
+        return bool(self.admin_password) and self.admin_password != DEFAULT_ADMIN_PASSWORD
+
+    @property
+    def write_locked(self) -> bool:
+        """Whether changing settings needs the admin password.
+
+        A public demo is always locked. A private instance is locked as soon as
+        an admin password is configured; with the default password it stays
+        open, as it has no secret to check against.
+        """
+        return self.demo_mode or self.admin_password_set
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 # Global settings instance

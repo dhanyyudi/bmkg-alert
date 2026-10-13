@@ -1,8 +1,8 @@
 """Alert Engine worker — background polling loop.
 
 Runs as an asyncio.Task in the FastAPI lifespan. On each cycle:
-1. Fetch nowcast list from BMKG API
-2. For each warning, fetch detail
+1. Fetch every active warning from the BMKG API
+2. Skip expired warnings and those below the severity floor
 3. Match against monitored locations
 4. Deduplicate (skip if code+location already exists)
 5. Store new alerts and send notifications
@@ -22,7 +22,8 @@ import structlog
 
 from app.config import settings
 from app.engine.bmkg_client import BMKGClient
-from app.engine.matcher import match_locations, name_listed
+from app.engine.geo import is_near_warning, kecamatan_names, resolve_point
+from app.engine.matcher import is_district_level, match_locations, name_listed
 from app.engine.state import StateManager
 from app.notifications.formatter import format_time, severity_label
 from app.notifications.telegram import TelegramSender
@@ -58,6 +59,8 @@ class AlertEngine:
         self._last_poll: str | None = None
         self._last_poll_result: str | None = None
         self._stop_event = asyncio.Event()
+        self._cycle_lock = asyncio.Lock()
+        self._district_names: dict[str, set[str]] = {}
 
     @property
     def running(self) -> bool:
@@ -145,7 +148,11 @@ class AlertEngine:
             return DEFAULT_POLL_INTERVAL
 
     async def _run_poll_cycle(self) -> dict[str, Any]:
-        """Execute a single poll cycle."""
+        """Execute a single poll cycle; a manual check waits for a running one instead of overlapping it."""
+        async with self._cycle_lock:
+            return await self._poll_once()
+
+    async def _poll_once(self) -> dict[str, Any]:
         start_time = datetime.now(timezone.utc)
         self._last_poll = start_time.isoformat()
         summary = {
@@ -164,92 +171,88 @@ class AlertEngine:
         logger.info("poll_cycle_start")
 
         try:
-            # 1. Fetch nowcast list
-            nowcast = await self._bmkg.get_nowcast_list()
-            summary["warnings_fetched"] = len(nowcast.data)
+            # 1. Fetch every active warning (one upstream request)
+            active = await self._bmkg.get_warnings()
+            summary["warnings_fetched"] = len(active)
+            summary["details_fetched"] = len(active)
 
             # 2. Monitored locations, channels and the severity floor
+            await self._resolve_location_points()
             locations = await self._state.get_enabled_locations()
+            district_members = await self._district_members(locations)
             channels = await self._state.get_enabled_channels()
             min_severity = _SEVERITY_ORDER.get(
                 (await self._state.get_config_value("severity_threshold", "all")).lower(), 0
             )
 
-            # 3. Fetch each warning's detail once; trials reuse it because the
-            #    upstream API rate-limits detail requests
-            details: dict[str, Any] = {}
-            for item in nowcast.data:
+            # 3. Match each warning against the monitored locations
+            for item in active:
+                warning = item.warning
                 try:
-                    detail = await self._bmkg.get_nowcast_detail(item.code)
-                    details[item.code] = detail
-                    summary["details_fetched"] += 1
+                    if _has_expired(warning, start_time):
+                        continue
+                    if _SEVERITY_ORDER.get(str(warning.severity).lower(), 0) < min_severity:
+                        continue
 
-                    for warning in detail.warnings:
-                        if _has_expired(warning, start_time):
+                    matches = match_locations(warning, locations, district_members)
+                    summary["matches_found"] += len(matches)
+
+                    for match in matches:
+                        # Dedup check
+                        if await self._state.is_duplicate(item.code, match.location.id):
+                            summary["duplicates_skipped"] += 1
                             continue
-                        if _SEVERITY_ORDER.get(str(warning.severity).lower(), 0) < min_severity:
-                            continue
 
-                        matches = match_locations(warning, locations)
-                        summary["matches_found"] += len(matches)
+                        # Store alert
+                        alert_id = await self._state.store_alert(warning, match, item.code)
+                        summary["new_alerts"] += 1
 
-                        for match in matches:
-                            # Dedup check
-                            if await self._state.is_duplicate(
-                                item.code, match.location.id
-                            ):
-                                summary["duplicates_skipped"] += 1
-                                continue
+                        # Send notifications
+                        if channels and self._dispatcher:
+                            for channel in channels:
+                                try:
+                                    success = await self._dispatcher.send(
+                                        alert_id=alert_id,
+                                        warning=warning,
+                                        match=match,
+                                        channel=channel,
+                                    )
+                                    if success:
+                                        summary["notifications_sent"] += 1
+                                except Exception as send_err:
+                                    logger.error(
+                                        "notification_send_error",
+                                        channel_id=channel.get("id"),
+                                        error=str(send_err),
+                                    )
+                                    summary["errors"].append(str(send_err))
 
-                            # Store alert
-                            alert_id = await self._state.store_alert(
-                                warning, match, item.code
-                            )
-                            summary["new_alerts"] += 1
-
-                            # Send notifications
-                            if channels and self._dispatcher:
-                                for channel in channels:
-                                    try:
-                                        success = await self._dispatcher.send(
-                                            alert_id=alert_id,
-                                            warning=warning,
-                                            match=match,
-                                            channel=channel,
-                                        )
-                                        if success:
-                                            summary["notifications_sent"] += 1
-                                    except Exception as send_err:
-                                        logger.error(
-                                            "notification_send_error",
-                                            channel_id=channel.get("id"),
-                                            error=str(send_err),
-                                        )
-                                        summary["errors"].append(str(send_err))
-
-                except Exception as detail_err:
+                except Exception as warning_err:
                     logger.error(
-                        "detail_fetch_error",
+                        "warning_processing_error",
                         code=item.code,
-                        error=str(detail_err),
+                        error=str(warning_err),
                     )
-                    summary["errors"].append(f"{item.code}: {detail_err}")
+                    summary["errors"].append(f"{item.code}: {warning_err}")
 
             # 4. Mark expired alerts
             expired = await self._state.mark_expired_alerts()
             summary["expired_alerts"] = len(expired)
 
             # 5. Send trial notifications
-            summary["trial_notifications"] = await self._process_trials(details, start_time)
+            summary["trial_notifications"] = await self._process_trials(active, start_time)
 
             # 6. Expire trial subscriptions
             summary["trials_expired"] = await self._expire_trials()
+
+            # 7. Keep the activity log bounded
+            await self._state.prune_activity_log()
 
             # Build result
             duration_ms = int(
                 (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             )
-            if not nowcast.data:
+            if not active:
                 self._last_poll_result = "BMKG tidak mengeluarkan peringatan"
             elif not locations:
                 self._last_poll_result = "Belum ada lokasi yang dipantau"
@@ -282,7 +285,24 @@ class AlertEngine:
 
         return summary
 
-    async def _process_trials(self, details: dict[str, Any], now: datetime) -> int:
+    async def _district_members(self, locations: list[Any]) -> dict[str, set[str]]:
+        """Kecamatan names for each monitored kabupaten/kota, looked up once and kept."""
+        for location in locations:
+            code = location.subdistrict_code
+            if is_district_level(location) and code not in self._district_names:
+                names = await kecamatan_names(self._bmkg, code)
+                if names:
+                    self._district_names[code] = names
+        return self._district_names
+
+    async def _resolve_location_points(self) -> None:
+        """Fill in coordinates for locations added before they were stored, a few per cycle."""
+        for location in await self._state.get_locations_without_point():
+            point = await resolve_point(self._bmkg, location.subdistrict_code)
+            if point:
+                await self._state.set_location_point(location.id, *point)
+
+    async def _process_trials(self, active: list[Any], now: datetime) -> int:
         """Send Telegram notifications to matching trial subscribers, once per warning."""
         bot_token = settings.telegram_bot_token
         if not bot_token:
@@ -295,57 +315,57 @@ class AlertEngine:
         sent_count = 0
         telegram = TelegramSender()
 
-        for code, detail in details.items():
-            for warning in detail.warnings:
-                if _has_expired(warning, now):
+        for item in active:
+            warning = item.warning
+            if _has_expired(warning, now):
+                continue
+
+            area_names_lower = {a.name.lower() for a in warning.areas}
+            warn_sev = _SEVERITY_ORDER.get(str(warning.severity).lower(), 0)
+
+            for trial in trials:
+                # Severity filter
+                trial_threshold = trial.get("severity_threshold", "all")
+                if warn_sev < _SEVERITY_ORDER.get(trial_threshold.lower(), 0):
                     continue
 
-                area_names_lower = {a.name.lower() for a in warning.areas}
-                warn_sev = _SEVERITY_ORDER.get(str(warning.severity).lower(), 0)
+                # Location matching
+                sub_name = trial.get("subdistrict_name", "")
+                dist_name = trial.get("district_name", "").lower()
+                by_name = name_listed(sub_name, warning.description) and is_near_warning(
+                    trial.get("latitude"), trial.get("longitude"), warning.areas
+                )
+                by_district = bool(dist_name and any(dist_name in a for a in area_names_lower))
+                if not (by_name or by_district):
+                    continue
 
-                for trial in trials:
-                    # Severity filter
-                    trial_threshold = trial.get("severity_threshold", "all")
-                    if warn_sev < _SEVERITY_ORDER.get(trial_threshold.lower(), 0):
-                        continue
+                if not await self._state.claim_trial_notification(trial["id"], item.code):
+                    continue
 
-                    # Location matching
-                    sub_name = trial.get("subdistrict_name", "")
-                    dist_name = trial.get("district_name", "").lower()
-                    matched = name_listed(sub_name, warning.description) or bool(
-                        dist_name and any(dist_name in a for a in area_names_lower)
+                loc_label = trial.get("subdistrict_name", "")
+                if trial.get("district_name"):
+                    loc_label += f", {trial['district_name']}"
+
+                msg = (
+                    f"<b>Peringatan Cuaca: {escape(warning.event)}</b>\n"
+                    f"Tingkat: {severity_label(warning.severity)}\n\n"
+                    f"Lokasi Anda: {escape(loc_label)}\n"
+                    f"Berlaku: {format_time(warning.effective)}\n"
+                    f"Hingga: {format_time(warning.expires)}\n\n"
+                    f"{escape((warning.description or '')[:300])}\n\n"
+                    f"<i>BMKG Alert, mode trial</i>"
+                )
+
+                try:
+                    ok = await telegram.send_raw(
+                        bot_token=bot_token,
+                        chat_id=trial["telegram_chat_id"],
+                        message=msg,
                     )
-                    if not matched:
-                        continue
-
-                    if not await self._state.claim_trial_notification(trial["id"], code):
-                        continue
-
-                    # Build and send message
-                    loc_label = trial.get("subdistrict_name", "")
-                    if trial.get("district_name"):
-                        loc_label += f", {trial['district_name']}"
-
-                    msg = (
-                        f"<b>Peringatan Cuaca: {escape(warning.event)}</b>\n"
-                        f"Tingkat: {severity_label(warning.severity)}\n\n"
-                        f"Lokasi Anda: {escape(loc_label)}\n"
-                        f"Berlaku: {format_time(warning.effective)}\n"
-                        f"Hingga: {format_time(warning.expires)}\n\n"
-                        f"{escape((warning.description or '')[:300])}\n\n"
-                        f"<i>BMKG Alert, mode trial</i>"
-                    )
-
-                    try:
-                        ok = await telegram.send_raw(
-                            bot_token=bot_token,
-                            chat_id=trial["telegram_chat_id"],
-                            message=msg,
-                        )
-                        if ok:
-                            sent_count += 1
-                    except Exception as e:
-                        logger.error("trial_send_error", chat_id=trial["telegram_chat_id"], error=str(e))
+                    if ok:
+                        sent_count += 1
+                except Exception as e:
+                    logger.error("trial_send_error", trial_id=trial["id"], error=str(e))
 
         return sent_count
 

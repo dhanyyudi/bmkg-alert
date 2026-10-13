@@ -185,6 +185,27 @@ class StateManager:
             result.append(channel)
         return result
 
+    async def get_locations_without_point(self, limit: int = 3) -> list[Location]:
+        """Enabled locations whose coordinates have not been resolved yet."""
+        rows = await self._db.fetch_all(
+            "SELECT * FROM locations WHERE enabled = 1 AND (latitude IS NULL OR longitude IS NULL) LIMIT ?",
+            (limit,),
+        )
+        return [Location(**dict(row)) for row in rows]
+
+    async def set_location_point(self, location_id: int, latitude: float, longitude: float) -> None:
+        await self._db.execute(
+            "UPDATE locations SET latitude = ?, longitude = ? WHERE id = ?",
+            (latitude, longitude, location_id),
+        )
+
+    async def prune_activity_log(self, keep_days: int = 30) -> None:
+        """Drop activity entries older than `keep_days`; one row is written per poll, so it grows without bound."""
+        await self._db.execute(
+            "DELETE FROM activity_log WHERE created_at < datetime('now', ?)",
+            (f"-{keep_days} days",),
+        )
+
     async def get_config_value(self, key: str, default: str = "") -> str:
         """Read a single config value."""
         row = await self._db.fetch_one(

@@ -1,7 +1,7 @@
 """Tests for the notification formatter."""
 
 from app.models import Location, MatchResult, Area, WarningInfo
-from app.notifications.formatter import _format_time, format_expiry_message, format_telegram_message
+from app.notifications.formatter import _format_time, format_telegram_message
 
 
 def _make_warning() -> WarningInfo:
@@ -86,17 +86,6 @@ class TestTelegramFormatter:
         msg = format_telegram_message(_make_warning(), _make_match())
         assert "<b>" in msg
         assert "</b>" in msg
-
-
-class TestExpiryMessage:
-    """Test 'all clear' message formatting."""
-
-    def test_expiry_message(self):
-        """Expiry message contains event and location."""
-        msg = format_expiry_message("Hujan Lebat", "Rumah")
-        assert "Berakhir" in msg
-        assert "Hujan Lebat" in msg
-        assert "Rumah" in msg
 
 
 class TestTimeFormatter:

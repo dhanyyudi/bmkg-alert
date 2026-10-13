@@ -1,3 +1,4 @@
+from html import escape
 import logging
 import httpx
 from typing import Any
@@ -32,17 +33,11 @@ class TelegramProvider(NotificationProvider):
         try:
             url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
             
-            # Format message with HTML
-            text = (
-                f"<b>{message.title}</b>\n\n"
-                f"{message.body}\n\n"
-                f"Severity: {message.severity}\n"
-                f"Time: {message.timestamp}"
-            )
-            
+            text = f"<b>{escape(message.title)}</b>\n\n{escape(message.body)}"
+
             if message.url:
-                text += f"\n<a href='{message.url}'>View Details</a>"
-            
+                text += f"\n\n<a href=\"{escape(message.url, quote=True)}\">Lihat peta guncangan</a>"
+
             payload = {
                 "chat_id": self.chat_id,
                 "text": text,

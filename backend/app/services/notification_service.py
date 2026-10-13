@@ -1,63 +1,58 @@
-from typing import Union
-import logging
-from app.services.notifications.base import NotificationProvider, NotificationMessage
-from app.services.notifications.discord import DiscordProvider
-from app.services.notifications.slack import SlackProvider
-from app.services.notifications.webhook import WebhookProvider
-from app.services.notifications.email import EmailProvider
-from app.services.notifications.telegram import TelegramProvider
-from app.models.nowcast import Warning
-from app.models.earthquake import Earthquake
+"""Earthquake announcements to the channels configured through environment variables."""
+
 import asyncio
+import logging
+from datetime import timedelta, timezone
+
+from app.config import settings
+from app.models.earthquake import Earthquake
+from app.services.notifications.base import NotificationMessage, NotificationProvider
+from app.services.notifications.discord import DiscordProvider
+from app.services.notifications.email import EmailProvider
+from app.services.notifications.slack import SlackProvider
+from app.services.notifications.telegram import TelegramProvider
+from app.services.notifications.webhook import WebhookProvider
 
 logger = logging.getLogger(__name__)
 
+WIB = timezone(timedelta(hours=7))
+
+
 class NotificationService:
-    """Service to deliver notifications across multiple channels."""
-    
+    """Delivers a notification across every provider that has credentials."""
+
     def __init__(self):
         self.providers: list[NotificationProvider] = [
             DiscordProvider(),
             SlackProvider(),
             WebhookProvider(),
-            WebhookProvider(),
             EmailProvider(),
             TelegramProvider(),
         ]
-    
-    async def dispatch(self, alert: Union[Warning, Earthquake]):
-        """Dispatch an alert to all configured providers."""
-        if isinstance(alert, Warning):
-            message = self._create_message_from_warning(alert)
-        elif isinstance(alert, Earthquake):
-            message = self._create_message_from_earthquake(alert)
-        else:
-            logger.warning(f"Unknown alert type: {type(alert)}")
-            return
 
-        logger.info(f"Dispatching alert: {message.title}")
-        
-        # Send to all providers in parallel
-        tasks = [provider.send(message) for provider in self.providers]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info(f"Notification Results: {results}")
-        
-    def _create_message_from_warning(self, warning: Warning) -> NotificationMessage:
-        """Convert Warning model to NotificationMessage."""
-        severity = warning.severity.value if hasattr(warning.severity, 'value') else str(warning.severity)
-        
-        return NotificationMessage(
-            title=f"{warning.event} - {warning.headline}",
-            body=warning.description,
-            severity=severity,
-            timestamp=warning.effective or warning.created_at,
-            url="https://bmkg-alert.com", # TODO: Link to actual alert detail
-            original_data=warning.model_dump(mode='json')
+    @staticmethod
+    def has_targets() -> bool:
+        """Whether any environment-configured channel exists to announce to."""
+        return bool(
+            settings.discord_webhook_url
+            or settings.slack_webhook_url
+            or settings.generic_webhook_url
+            or (settings.smtp_host and settings.smtp_user)
+            or (settings.telegram_bot_token and settings.telegram_chat_id)
         )
 
-    def _create_message_from_earthquake(self, eq: Earthquake) -> NotificationMessage:
-        """Convert Earthquake model to NotificationMessage."""
-        # Determine severity based on magnitude
+    async def dispatch(self, earthquake: Earthquake) -> None:
+        """Announce an earthquake to all configured providers."""
+        message = self._earthquake_message(earthquake)
+        logger.info(f"Dispatching alert: {message.title}")
+
+        results = await asyncio.gather(
+            *(provider.send(message) for provider in self.providers),
+            return_exceptions=True,
+        )
+        logger.info(f"Notification Results: {results}")
+
+    def _earthquake_message(self, eq: Earthquake) -> NotificationMessage:
         severity = "Info"
         if eq.magnitude >= 6.0:
             severity = "Critical"
@@ -65,24 +60,30 @@ class NotificationService:
             severity = "High"
         elif eq.magnitude >= 4.0:
             severity = "Medium"
-            
-        title = f"Gempa Mag: {eq.magnitude} - {eq.region}"
+
+        # The API reports earthquake times in UTC without an offset
+        occurred = eq.occurred_at
+        if occurred.tzinfo is None:
+            occurred = occurred.replace(tzinfo=timezone.utc)
+        local = occurred.astimezone(WIB)
+
         body = (
-            f"Waktu: {eq.occurred_at}\n"
+            f"Waktu: {local:%d-%m-%Y %H:%M} WIB\n"
             f"Lokasi: {eq.lat_text}, {eq.lon_text}\n"
-            f"Kedalaman: {eq.depth_km} km\n"
+            f"Kedalaman: {eq.depth_km:g} km\n"
             f"Potensi: {eq.tsunami_potential or '-'}\n"
             f"Dirasakan: {eq.felt_report or '-'}"
         )
-        
+
         return NotificationMessage(
-            title=title,
+            title=f"Gempa M {eq.magnitude:.1f}: {eq.region}",
             body=body,
             severity=severity,
-            timestamp=eq.occurred_at,
-            url=eq.shakemap_url or "https://bmkg-alert.com",
-            original_data=eq.model_dump(mode='json')
+            timestamp=occurred,
+            url=eq.shakemap_url,
+            original_data=eq.model_dump(mode="json"),
         )
+
 
 # Global notification service
 notification_service = NotificationService()

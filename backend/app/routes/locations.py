@@ -5,7 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_database
-from app.dependencies import require_write_allowed
+from app.dependencies import get_bmkg_client, require_write_allowed
+from app.engine.geo import resolve_point
 from app.models import LocationCreate, LocationUpdate
 
 router = APIRouter(prefix="/locations", tags=["locations"])
@@ -35,6 +36,15 @@ async def create_location(body: LocationCreate):
             detail=f"Location with subdistrict_code {body.subdistrict_code} already exists",
         )
 
+    # Coordinates tell same-named kecamatan in other provinces apart. Best effort:
+    # the engine fills them in later if the lookup fails here.
+    latitude, longitude = body.latitude, body.longitude
+    client = get_bmkg_client()
+    if (latitude is None or longitude is None) and client is not None:
+        point = await resolve_point(client, body.subdistrict_code)
+        if point:
+            latitude, longitude = point
+
     cursor = await db.execute(
         """
         INSERT INTO locations (
@@ -51,8 +61,8 @@ async def create_location(body: LocationCreate):
             body.district_name,
             body.subdistrict_code,
             body.subdistrict_name,
-            body.latitude,
-            body.longitude,
+            latitude,
+            longitude,
         ),
     )
     location_id = cursor.lastrowid

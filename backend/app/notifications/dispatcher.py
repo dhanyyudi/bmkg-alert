@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import structlog
 
+from app.config import settings
 from app.engine.state import StateManager
 from app.models import MatchResult, WarningInfo
 from app.notifications.telegram import TelegramSender
@@ -125,17 +127,32 @@ class NotificationDispatcher:
         start_str = await self._state.get_config_value("quiet_hours_start", "22:00")
         end_str = await self._state.get_config_value("quiet_hours_end", "06:00")
 
-        try:
-            now = datetime.now(timezone.utc).hour
-            # Convert to local Jakarta time (UTC+7)
-            local_hour = (now + 7) % 24
-            start_hour = int(start_str.split(":")[0])
-            end_hour = int(end_str.split(":")[0])
-
-            if start_hour > end_hour:
-                # Overnight: e.g., 22:00 - 06:00
-                return local_hour >= start_hour or local_hour < end_hour
-            else:
-                return start_hour <= local_hour < end_hour
-        except (ValueError, IndexError):
+        start = _parse_clock(start_str)
+        end = _parse_clock(end_str)
+        if start is None or end is None or start == end:
             return False
+
+        now = datetime.now(_local_zone())
+        minute_of_day = now.hour * 60 + now.minute
+        if start > end:
+            # Overnight: e.g., 22:00 - 06:00
+            return minute_of_day >= start or minute_of_day < end
+        return start <= minute_of_day < end
+
+
+def _parse_clock(value: str) -> int | None:
+    """"22:30" -> minutes since midnight; None when the value is not a time."""
+    try:
+        hours, minutes = value.strip().split(":")[:2]
+        result = int(hours) * 60 + int(minutes)
+    except (ValueError, AttributeError):
+        return None
+    return result if 0 <= result < 24 * 60 else None
+
+
+def _local_zone() -> ZoneInfo:
+    """The instance's time zone (TZ); quiet hours are wall-clock times there."""
+    try:
+        return ZoneInfo(settings.timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        return ZoneInfo("Asia/Jakarta")

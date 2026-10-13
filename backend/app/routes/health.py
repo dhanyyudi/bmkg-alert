@@ -6,6 +6,7 @@ import time
 
 from fastapi import APIRouter
 
+from app import APP_VERSION
 from app.config import get_settings
 from app.database import get_database
 from app.dependencies import get_bmkg_client, get_engine
@@ -55,7 +56,7 @@ async def health_check():
         "last_poll_result": engine_status.get("last_poll_result"),
         "active_warnings": active_row["cnt"] if active_row else 0,
         "uptime_seconds": int(time.time() - _start_time),
-        "version": "1.0.0",
+        "version": APP_VERSION,
         "demo_mode": settings.demo_mode,
         "bmkg_api_url": settings.bmkg_api_url,
         "bmkg_api_status": "connected" if bmkg_ok else "unreachable",

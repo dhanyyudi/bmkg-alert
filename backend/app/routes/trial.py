@@ -13,6 +13,8 @@ import structlog
 
 from app.config import settings
 from app.database import get_database
+from app.dependencies import client_ip, get_bmkg_client, limiter
+from app.engine.geo import resolve_point
 from app.notifications.telegram import TelegramSender
 
 logger = structlog.get_logger()
@@ -37,13 +39,6 @@ class TrialRegister(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
-
-
 async def _send_trial_message(chat_id: str, text: str) -> bool:
     """Send a Telegram message using the system bot token."""
     bot_token = settings.telegram_bot_token
@@ -57,7 +52,8 @@ async def _send_trial_message(chat_id: str, text: str) -> bool:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/register")
-async def register_trial(body: TrialRegister, request: Request):
+@limiter.limit("10/minute")
+async def register_trial(request: Request, body: TrialRegister):
     """Register a 24-hour Telegram trial subscription."""
     db = get_database()
 
@@ -85,7 +81,7 @@ async def register_trial(body: TrialRegister, request: Request):
         )
 
     # Rate limit: max registrations per IP in the last hour
-    ip = _client_ip(request)
+    ip = client_ip(request)
     ip_count = await db.fetch_one(
         """
         SELECT COUNT(*) as cnt FROM trial_subscriptions
@@ -103,12 +99,15 @@ async def register_trial(body: TrialRegister, request: Request):
     expires_at = datetime.now(timezone.utc) + timedelta(hours=TRIAL_DURATION_HOURS)
     expires_str = expires_at.strftime("%Y-%m-%d %H:%M:%S")
 
+    client = get_bmkg_client()
+    point = await resolve_point(client, body.location_code) if client else None
+
     cursor = await db.execute(
         """
         INSERT INTO trial_subscriptions
             (telegram_chat_id, subdistrict_code, subdistrict_name, district_name, province_name,
-             severity_threshold, expires_at, ip_address)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             severity_threshold, expires_at, ip_address, latitude, longitude)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             body.chat_id,
@@ -119,6 +118,8 @@ async def register_trial(body: TrialRegister, request: Request):
             body.severity_min,
             expires_str,
             ip,
+            point[0] if point else None,
+            point[1] if point else None,
         ),
     )
     trial_id = cursor.lastrowid
@@ -153,7 +154,8 @@ async def register_trial(body: TrialRegister, request: Request):
 
 
 @router.get("/status/{chat_id}")
-async def get_trial_status(chat_id: str):
+@limiter.limit("30/minute")
+async def get_trial_status(request: Request, chat_id: str):
     """Get active trial status for a chat ID."""
     db = get_database()
 
@@ -252,7 +254,8 @@ async def get_bot_info():
 
 
 @router.post("/{trial_id}/test-message")
-async def send_test_message(trial_id: int, chat_id: str = Query(..., description="Chat ID pemilik trial")):
+@limiter.limit("5/minute")
+async def send_test_message(request: Request, trial_id: int, chat_id: str = Query(..., description="Chat ID pemilik trial")):
     """Send a test Telegram message so the user can verify the bot can reach them."""
     db = get_database()
 

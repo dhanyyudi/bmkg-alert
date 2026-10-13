@@ -45,5 +45,14 @@ async def get_status():
     """Get the current engine status."""
     engine = get_engine()
     if engine is None:
-        return {"running": False, "message": "Engine not initialized", "demo_mode": settings.demo_mode}
-    return {**engine.get_status(), "demo_mode": settings.demo_mode}
+        return {"running": False, "message": "Engine not initialized", **_access()}
+    return {**engine.get_status(), **_access()}
+
+
+def _access() -> dict:
+    """What the UI needs to know to lock its controls and offer a login."""
+    return {
+        "demo_mode": settings.demo_mode,
+        "write_locked": settings.write_locked,
+        "admin_login_available": settings.admin_password_set,
+    }

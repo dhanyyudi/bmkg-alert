@@ -1,33 +1,30 @@
 """Main FastAPI application."""
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app import APP_VERSION
 from app.cache import cache
 from app.config import settings
-from app.core.auth import verify_admin
 from app.dependencies import limiter, set_bmkg_client, set_engine
-from app.http_client import close_http_client
 from app.routes import (
     activity as activity_router,
     alerts as alerts_router,
     auth as auth_router,
+    bmkg as bmkg_router,
     channels as channels_router,
     config as config_router,
     engine as engine_router,
+    health as health_router,
     locations as locations_router,
     trial as trial_router,
-    weather as weather_router,
 )
-from app.routers import earthquake, health, nowcast, wilayah
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +41,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # --- Startup ---
     logger.info("Starting up BMKG Alert API...")
+
+    if settings.demo_mode and not settings.admin_password_set:
+        logger.warning("DEMO_MODE is on with the default ADMIN_PASSWORD: admin login stays disabled until it is changed")
+    elif not settings.write_locked:
+        logger.warning("ADMIN_PASSWORD is the default: anyone who can reach this instance can change its settings")
 
     # 1. Connect cache (Redis with in-memory fallback)
     await cache.connect()
@@ -66,13 +68,14 @@ async def lifespan(app: FastAPI):
     logger.info("BMKG client configured: %s", settings.bmkg_api_url)
     # The client reads BMKG_API_URL from the environment; mirror it into the
     # config table so the Settings page never shows a stale URL.
-    await db.execute(
-        """
-        INSERT INTO config (key, value, updated_at) VALUES ('bmkg_api_url', ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-        """,
-        (settings.bmkg_api_url,),
-    )
+    for key, value in (("bmkg_api_url", settings.bmkg_api_url), ("app_version", APP_VERSION)):
+        await db.execute(
+            """
+            INSERT INTO config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+            """,
+            (key, value),
+        )
 
     # 4. Create and start AlertEngine
     from app.engine.state import StateManager
@@ -89,9 +92,9 @@ async def lifespan(app: FastAPI):
     await engine.start()
     logger.info("Alert engine started")
 
-    # 5. Start earthquake/weather scheduler (BMKG API poller)
+    # 5. Start the earthquake announcer
     from app.services.scheduler import scheduler
-    await scheduler.start()
+    await scheduler.start(bmkg_client)
 
     yield
 
@@ -102,34 +105,26 @@ async def lifespan(app: FastAPI):
     await db.close()
     await cache.disconnect()
     await bmkg_client.close()
-    await close_http_client()
     logger.info("Cleanup complete")
 
 
 # OpenAPI tags metadata
 TAGS_METADATA = [
-    {"name": "earthquake", "description": "Earthquake data from BMKG seismic network"},
-    {"name": "weather", "description": "Weather forecasts for Indonesian regions"},
-    {"name": "nowcast", "description": "Weather warnings and early alerts (Peringatan Dini)"},
-    {"name": "wilayah", "description": "Region lookup for Indonesian administrative areas"},
+    {"name": "bmkg", "description": "BMKG warnings, earthquakes, forecasts and regions, served from BMKG_API_URL"},
     {"name": "alerts", "description": "Matched alert history and stats"},
     {"name": "locations", "description": "Monitored locations management"},
     {"name": "channels", "description": "Notification channels management"},
     {"name": "config", "description": "Application configuration"},
     {"name": "activity", "description": "Activity log"},
     {"name": "engine", "description": "Alert engine control (start/stop/check-now/status)"},
-    {"name": "health", "description": "Health and readiness checks"},
+    {"name": "trial", "description": "24-hour Telegram trial for demo visitors"},
+    {"name": "health", "description": "Health check"},
 ]
 
 DESCRIPTION = """
-REST API for Indonesian Weather Alerts & BMKG Data.
-
-**Features:**
-- Earthquake Data: Latest, recent (M 5.0+), felt earthquakes
-- Weather Forecasts: 3-day forecasts for any kelurahan/desa in Indonesia
-- Weather Warnings: Real-time severe weather alerts (Nowcast)
-- Alert Management: Monitored locations, notification channels, alert history
-- Alert Engine: Background polling and notification dispatch
+API of BMKG Alert: monitored locations, notification channels, matched alerts
+and the alert engine. BMKG data comes from the BMKG REST API configured as
+`BMKG_API_URL`.
 
 **Attribution:** All BMKG data belongs to BMKG (Badan Meteorologi, Klimatologi, dan Geofisika).
 """
@@ -137,7 +132,7 @@ REST API for Indonesian Weather Alerts & BMKG Data.
 app = FastAPI(
     title="BMKG Alert API",
     description=DESCRIPTION,
-    version="1.0.0",
+    version=APP_VERSION,
     docs_url=None,
     redoc_url="/docs",
     openapi_url="/openapi.json",
@@ -145,49 +140,34 @@ app = FastAPI(
     openapi_tags=TAGS_METADATA,
 )
 
-# Add rate limiter
+# Rate limiter (only routes that declare a limit are limited)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# The bundled frontend calls the API on its own origin, so cross-origin access
+# is off unless CORS_ORIGINS lists who may call it.
+if settings.cors_origin_list:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-# ── BMKG API routes (routers/) ────────────────────────────────────────────────
-app.include_router(health.router, prefix="/api")
-app.include_router(nowcast.router, prefix="/api")
-app.include_router(earthquake.router, prefix="/api")
-app.include_router(wilayah.router, prefix="/api")
-
-# ── Alert management routes (routes/) ────────────────────────────────────────
-app.include_router(auth_router.router, prefix="/api/v1")
-app.include_router(alerts_router.router, prefix="/api/v1")
-app.include_router(locations_router.router, prefix="/api/v1")
-app.include_router(channels_router.router, prefix="/api/v1")
-app.include_router(config_router.router, prefix="/api/v1")
-app.include_router(activity_router.router, prefix="/api/v1")
-app.include_router(engine_router.router, prefix="/api/v1")
-app.include_router(trial_router.router, prefix="/api/v1")
-# Forecasts come from BMKG_API_URL: the bundled weather parser no longer matches BMKG's response format
-app.include_router(weather_router.router, prefix="/api/v1")
-
-
-# ── Admin endpoint ────────────────────────────────────────────────────────────
-@app.get("/admin/status", dependencies=[Depends(verify_admin)], tags=["admin"])
-async def admin_status():
-    """Protected admin status endpoint."""
-    return {"status": "ok", "message": "You are authenticated as admin"}
-
-
-# Static landing page: only mount if the directory exists (not available in Docker).
-if os.path.isdir("landing"):
-    app.mount("/static", StaticFiles(directory="landing"), name="static")
-    app.mount("/", StaticFiles(directory="landing", html=True), name="landing")
+for route_module in (
+    health_router,
+    bmkg_router,
+    auth_router,
+    alerts_router,
+    locations_router,
+    channels_router,
+    config_router,
+    activity_router,
+    engine_router,
+    trial_router,
+):
+    app.include_router(route_module.router, prefix="/api/v1")
 
 
 @app.exception_handler(Exception)

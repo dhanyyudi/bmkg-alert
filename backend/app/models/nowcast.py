@@ -114,45 +114,16 @@ class NowcastDetailResponse(BaseModel):
     warnings: list[Warning] = Field(..., description="List of active warnings")
 
 
-class LocationCheckResult(BaseModel):
-    """Result of checking warnings for a specific location."""
-    
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "location": "Wiradesa",
-                "has_warnings": True,
-                "warnings": [],
-            }
-        }
-    )
-    
-    location: str = Field(..., description="Location name that was checked")
-    has_warnings: bool = Field(..., description="Whether there are active warnings for this location")
-    warnings: list[Warning] = Field(default_factory=list, description="Active warnings affecting this location")
+class ActiveWarning(BaseModel):
+    """One entry of GET /v1/nowcast/warnings: a warning with its code and province."""
+
+    code: str = Field(..., description="BMKG warning code, unique per issuance")
+    province: str = Field(default="", description="Province named in the feed")
+    published_at: datetime | None = Field(None, description="When the warning was published")
+    warning: Warning
 
 
 class NowcastListResponse(BaseModel):
     """Response wrapper for list of active provinces (used by engine BMKG client)."""
     data: list[ActiveProvince] = Field(default_factory=list)
     meta: dict = Field(default_factory=dict)
-
-
-class NowcastMeta(BaseModel):
-    """Metadata for nowcast responses."""
-    
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "count": 5,
-                "fetched_at": "2026-02-16T20:05:00+07:00",
-                "cache_ttl": 120,
-                "language": "id",
-            }
-        }
-    )
-    
-    count: int = Field(..., description="Number of items")
-    fetched_at: datetime = Field(..., description="When the data was fetched")
-    cache_ttl: int = Field(..., description="Cache TTL in seconds")
-    language: str = Field(default="id", description="Language code (id/en)")

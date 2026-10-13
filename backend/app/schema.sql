@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS trial_subscriptions (
     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NOT NULL,
     expired_notified BOOLEAN DEFAULT 0,
-    ip_address TEXT
+    ip_address TEXT,
+    latitude REAL,
+    longitude REAL
 );
 
 -- Which warning each trial subscriber has already been told about

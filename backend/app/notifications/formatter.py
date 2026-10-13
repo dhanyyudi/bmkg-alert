@@ -95,23 +95,6 @@ def format_telegram_message(
     return "\n".join(lines)
 
 
-def format_expiry_message(
-    warning_event: str,
-    location_label: str,
-) -> str:
-    """Format an 'all clear' message when a warning expires."""
-    return (
-        f"✅ <b>Peringatan Berakhir</b>\n"
-        f"\n"
-        f"Peringatan <b>{escape(warning_event)}</b> untuk "
-        f"<b>{escape(location_label)}</b> telah berakhir.\n"
-        f"\n"
-        f"Kondisi sudah aman. Tetap waspada.\n"
-        f"\n"
-        f"📡 Sumber: BMKG (bmkg.go.id)"
-    )
-
-
 def format_time(iso_str) -> str:
     """Format ISO timestamp to a human-readable Indonesian time string."""
     if not iso_str:
