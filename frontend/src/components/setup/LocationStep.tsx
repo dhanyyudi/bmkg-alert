@@ -4,16 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, MapPin, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { MONITOR_LEVELS, levelLabel, regionContext, searchRegions, toLocationPayload, type WilayahResult } from '@/lib/wilayah';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface WilayahResult {
-    code: string;
-    name: string;
-    level: string;          // 'province' | 'district' | 'subdistrict' | 'village'
-    full_path: string;      // e.g. "Jawa Tengah > Kab. Pekalongan > Wiradesa"
-    parent_code: string | null;
-}
 
 interface Location {
     id: number;
@@ -30,41 +24,6 @@ interface Props {
 
 // ─── Helper: map WilayahResult → LocationCreate payload ──────────────────────
 
-function toLocationPayload(w: WilayahResult) {
-    const parts = w.full_path.split(' > ');
-    const province_name = parts[0] ?? '';
-    const district_name = parts[1] ?? '';
-    const subdistrict_name = parts[2] ?? w.name;
-
-    let province_code = '';
-    let district_code = '';
-    let subdistrict_code = '';
-
-    if (w.level === 'subdistrict' || w.level === 'village') {
-        subdistrict_code = w.code;
-        district_code = w.parent_code ?? w.code.split('.').slice(0, 2).join('.');
-        province_code = district_code.split('.')[0] ?? '';
-    } else if (w.level === 'district') {
-        district_code = w.code;
-        province_code = w.parent_code ?? w.code.split('.')[0] ?? '';
-        subdistrict_code = w.code; // district-level monitoring
-    } else {
-        // province
-        province_code = w.code;
-        district_code = w.code;
-        subdistrict_code = w.code;
-    }
-
-    return {
-        label: w.full_path,
-        province_code,
-        province_name,
-        district_code,
-        district_name,
-        subdistrict_code,
-        subdistrict_name,
-    };
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -83,14 +42,11 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
         setSearching(true);
         setResults([]);
         try {
-            const res = await api.get<{ data: WilayahResult[] }>(
-                `/wilayah/search?q=${encodeURIComponent(q)}`
-            );
-            const data = res.data ?? [];
+            const data = await searchRegions(q, MONITOR_LEVELS);
             setResults(data);
             if (data.length === 0) {
                 toast.info(`Tidak ada hasil untuk "${q}"`, {
-                    description: 'Periksa ejaannya atau coba nama kecamatan lain.',
+                    description: 'Periksa ejaannya. Yang bisa dipantau adalah kecamatan atau kabupaten/kota.',
                 });
             }
         } catch (e: any) {
@@ -110,7 +66,7 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
             setResults([]);
             setSearch('');
             toast.success(`Lokasi "${loc.name}" ditambahkan`, {
-                description: loc.full_path,
+                description: regionContext(loc),
             });
         } catch (e: any) {
             if (e?.status === 409) {
@@ -142,7 +98,7 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
     return (
         <div className="space-y-6">
             {/* Search input */}
-            <label htmlFor="setup-location-search" className="text-sm font-medium block">Cari kecamatan yang ingin dipantau</label>
+            <label htmlFor="setup-location-search" className="text-sm font-medium block">Cari kecamatan atau kabupaten/kota yang ingin dipantau</label>
             <div className="flex gap-2">
                 <Input
                     id="setup-location-search"
@@ -169,8 +125,8 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
                             className="p-2 flex justify-between items-center gap-2"
                         >
                             <div className="text-sm min-w-0">
-                                <p className="font-medium truncate">{res.name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{res.full_path}</p>
+                                <p className="font-medium truncate">{res.name} <span className="font-normal text-muted-foreground">({levelLabel(res.level)})</span></p>
+                                <p className="text-xs text-muted-foreground truncate">{regionContext(res)}</p>
                             </div>
                             <Button
                                 size="sm"
@@ -195,7 +151,7 @@ export const LocationStep: React.FC<Props> = ({ locations, onUpdate }) => {
                 <h3 className="text-sm font-semibold">Lokasi yang dipantau</h3>
                 {locations.length === 0 ? (
                     <div className="text-center p-4 border border-dashed rounded text-sm text-muted-foreground">
-                        Belum ada lokasi. Cari kecamatan di atas, lalu tekan Pantau.
+                        Belum ada lokasi. Cari kecamatan atau kabupaten/kota di atas, lalu tekan Pantau.
                     </div>
                 ) : (
                     locations.map(loc => (

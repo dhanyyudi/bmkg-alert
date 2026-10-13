@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
 import { Check, Globe, MapPin, Bell, Settings, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { LocationStep } from './setup/LocationStep';
 import { ChannelStep } from './setup/ChannelStep';
+import { useStore } from '@nanostores/react';
+import { AdminLogin } from '@/components/AdminLogin';
+import { engineStatus, fetchEngineStatus, isAdmin } from '@/stores/appStore';
 
 // Steps definition
 const STEPS = [
@@ -28,6 +31,11 @@ export const SetupWizard: React.FC = () => {
     });
     const [locations, setLocations] = useState<any[]>([]);
     const [channelCount, setChannelCount] = useState<number | null>(null);
+    const status = useStore(engineStatus);
+    const admin = useStore(isAdmin);
+    const locked = status.write_locked && !admin;
+
+    useEffect(() => { fetchEngineStatus(); }, []);
 
     const fetchLocations = async () => {
         try {
@@ -132,6 +140,17 @@ export const SetupWizard: React.FC = () => {
                 </CardHeader>
 
                 <CardContent className="flex-1 overflow-y-auto">
+                    {locked && (
+                        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 p-4 space-y-3 text-sm">
+                            <p>
+                                {status.demo_mode
+                                    ? 'Ini instance demo. Penyiapan hanya bisa diubah oleh admin.'
+                                    : 'Instance ini dilindungi kata sandi admin (ADMIN_PASSWORD). Masuk dulu supaya lokasi dan channel bisa disimpan.'}
+                            </p>
+                            <AdminLogin expanded idPrefix="setup-admin" />
+                        </div>
+                    )}
+
                     {step === 0 && (
                         <div className="space-y-4">
                             <h2 className="text-lg font-medium">Tiga hal yang perlu disiapkan</h2>
@@ -227,7 +246,7 @@ export const SetupWizard: React.FC = () => {
                     {step < STEPS.length - 1 ? (
                         <Button onClick={nextStep}>Lanjut</Button>
                     ) : (
-                        <Button onClick={handleSave} className="gap-2" disabled={loading}>
+                        <Button onClick={handleSave} className="gap-2" disabled={loading || locked}>
                             {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                             {loading ? 'Menyimpan...' : 'Simpan dan mulai pemantauan'}
                         </Button>

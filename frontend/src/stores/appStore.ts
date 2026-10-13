@@ -7,6 +7,10 @@ export type EngineStatus = {
   last_poll: string | null;
   last_poll_result: string | null;
   demo_mode: boolean;
+  // Settings changes need the admin password (public demo, or ADMIN_PASSWORD is set)
+  write_locked: boolean;
+  // False while ADMIN_PASSWORD is still the default: nobody can log in
+  admin_login_available: boolean;
 };
 
 export type Area = {
@@ -39,6 +43,8 @@ export const engineStatus = map<EngineStatus>({
   last_poll: null,
   last_poll_result: null,
   demo_mode: false,
+  write_locked: false,
+  admin_login_available: false,
 });
 
 export const engineState = atom<LoadState>('loading');
@@ -72,12 +78,14 @@ export function adminLogout(): void {
 // Actions
 export async function fetchEngineStatus() {
   try {
-    const res = await api.get<{ running: boolean; last_poll: string | null; last_poll_result: string | null; demo_mode?: boolean }>('/engine/status');
+    const res = await api.get<Partial<EngineStatus>>('/engine/status');
     engineStatus.set({
       running: res.running === true,
-      last_poll: res.last_poll,
-      last_poll_result: res.last_poll_result,
+      last_poll: res.last_poll ?? null,
+      last_poll_result: res.last_poll_result ?? null,
       demo_mode: res.demo_mode === true,
+      write_locked: res.write_locked === true,
+      admin_login_available: res.admin_login_available === true,
     });
     engineState.set('ready');
   } catch (e) {
@@ -96,4 +104,11 @@ export async function fetchActiveAlerts() {
     // Keep the last good list on screen during a refresh failure
     alertsState.set('error');
   }
+}
+
+/** Why a settings control is disabled, for its tooltip. */
+export function lockReason(): string {
+  return engineStatus.get().demo_mode
+    ? 'Mode demo: pasang instance sendiri untuk mengubah konfigurasi'
+    : 'Terkunci: masuk sebagai admin untuk mengubah pengaturan';
 }

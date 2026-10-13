@@ -14,12 +14,17 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Runtime dependencies only; build tooling stays in the builder stage
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
 
 ENV HOST=0.0.0.0
 ENV PORT=3000
+
+# The node image ships an unprivileged "node" user
+USER node
 
 EXPOSE 3000
 

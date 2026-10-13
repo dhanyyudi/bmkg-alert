@@ -5,16 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Send, Clock, MapPin, X, CheckCircle, AlertTriangle, Bot, MessageCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { regionContext, searchRegions, toLocationPayload, type WilayahResult } from '@/lib/wilayah';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type WilayahResult = {
-    code: string;
-    name: string;
-    level: string;
-    province?: string;
-    district?: string;
-};
 
 type TrialStatus = {
     active: boolean;
@@ -75,7 +69,8 @@ export const TryMode: React.FC = () => {
     const [cancelling, setCancelling] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
     const [sendingTest, setSendingTest] = useState(false);
-    const [now, setNow] = useState(Date.now());
+    // Re-render once a minute so the remaining time stays current
+    const [, setNow] = useState(Date.now());
 
     // Bot info
     const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
@@ -118,9 +113,7 @@ export const TryMode: React.FC = () => {
         if (q.length < 2) { setSearchResults([]); return; }
         setSearching(true);
         try {
-            const res = await api.get<{ data: WilayahResult[] }>(`/wilayah/search?q=${encodeURIComponent(q)}`);
-            const sub = (res.data ?? []).filter(r => r.level === 'kecamatan' || r.level === 'subdistrict');
-            setSearchResults(sub.length > 0 ? sub : (res.data ?? []).slice(0, 8));
+            setSearchResults(await searchRegions(q, ['subdistrict']));
         } catch { setSearchResults([]); }
         finally { setSearching(false); }
     }, []);
@@ -141,8 +134,8 @@ export const TryMode: React.FC = () => {
                 chat_id: chatId.trim(),
                 location_code: selectedLocation.code,
                 location_name: selectedLocation.name,
-                district_name: selectedLocation.district ?? '',
-                province_name: selectedLocation.province ?? '',
+                district_name: toLocationPayload(selectedLocation).district_name,
+                province_name: toLocationPayload(selectedLocation).province_name,
                 severity_min: severity,
             });
 
@@ -415,7 +408,7 @@ export const TryMode: React.FC = () => {
                                 <div>
                                     <div className="font-medium text-sm">{selectedLocation.name}</div>
                                     <div className="text-xs text-muted-foreground">
-                                        {[selectedLocation.district, selectedLocation.province].filter(Boolean).join(', ')}
+                                        {regionContext(selectedLocation)}
                                     </div>
                                 </div>
                                 <Button variant="ghost" size="icon" aria-label="Ganti lokasi" onClick={() => setSelectedLocation(null)}>
@@ -446,7 +439,7 @@ export const TryMode: React.FC = () => {
                                             >
                                                 <div className="font-medium">{r.name}</div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    {[r.district, r.province].filter(Boolean).join(', ')}
+                                                    {regionContext(r)}
                                                 </div>
                                             </button>
                                         ))}

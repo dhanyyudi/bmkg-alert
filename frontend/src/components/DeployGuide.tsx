@@ -23,10 +23,11 @@ const ENV_GROUPS: { title: string; vars: EnvVar[] }[] = [
     {
         title: 'Inti',
         vars: [
-            { name: 'ADMIN_PASSWORD', required: true, description: 'Kata sandi admin. Ganti dari nilai bawaan sebelum instance bisa diakses orang lain.' },
+            { name: 'ADMIN_PASSWORD', required: true, description: 'Kata sandi admin. Setelah diganti dari nilai bawaan, setiap perubahan pengaturan memerlukannya. Selama masih bawaan, siapa pun yang bisa membuka instance ini bisa mengubah pengaturan.' },
             { name: 'BMKG_API_URL', description: <>Alamat API sumber data BMKG. Bawaan: <Code>https://bmkg-api.dhanypedia.com</Code></> },
             { name: 'DEMO_MODE', description: <><Code>true</Code> menjadikan instance demo publik yang hanya bisa dibaca dan mengaktifkan trial 24 jam.</> },
-            { name: 'TZ', description: <>Zona waktu. Bawaan: <Code>Asia/Jakarta</Code></> },
+            { name: 'TZ', description: <>Zona waktu, dipakai untuk jam tenang. Bawaan: <Code>Asia/Jakarta</Code></> },
+            { name: 'CLIENT_IP_HEADER', description: <>Header berisi alamat pengunjung dari reverse proxy Anda, untuk pembatasan laju. Cloudflare: <Code>CF-Connecting-IP</Code>, nginx: <Code>X-Real-IP</Code>.</> },
         ],
     },
     {

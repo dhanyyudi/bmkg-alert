@@ -10,7 +10,14 @@ import type { MiddlewareHandler } from 'astro';
 
 const API_BACKEND = import.meta.env.API_URL || process.env.API_URL || 'http://localhost:8000';
 
-const BACKEND_PATHS = ['/api/', '/docs', '/redoc', '/openapi.json'];
+const BACKEND_PATHS = ['/api/', '/docs', '/openapi.json'];
+
+// Pages hold the admin password field, so they must not be framed or sniffed
+const PAGE_SECURITY_HEADERS = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+};
 
 export const onRequest: MiddlewareHandler = async (context, next) => {
     const url = new URL(context.request.url);
@@ -20,7 +27,11 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
     );
 
     if (!isBackendPath) {
-        return next();
+        const response = await next();
+        for (const [name, value] of Object.entries(PAGE_SECURITY_HEADERS)) {
+            response.headers.set(name, value);
+        }
+        return response;
     }
 
     const backendUrl = `${API_BACKEND}${url.pathname}${url.search}`;

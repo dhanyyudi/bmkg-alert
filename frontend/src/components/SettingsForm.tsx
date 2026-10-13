@@ -8,9 +8,10 @@ import { Trash2, Plus, Save, Send, Download, Upload, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { fmtDateTime } from '@/lib/format';
-import { engineStatus, isAdmin, fetchEngineStatus } from '@/stores/appStore';
+import { MONITOR_LEVELS, levelLabel, regionContext, searchRegions, toLocationPayload, type WilayahResult } from '@/lib/wilayah';
+import { engineStatus, isAdmin, fetchEngineStatus, lockReason } from '@/stores/appStore';
+import { AdminLogin } from '@/components/AdminLogin';
 
-const DEMO_TOOLTIP = 'Mode demo: pasang instance sendiri untuk mengubah konfigurasi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,14 +27,6 @@ type Location = {
     enabled: boolean;
 };
 
-type WilayahResult = {
-    code: string;
-    name: string;
-    level: string;
-    province?: string;
-    district?: string;
-    subdistrict?: string;
-};
 
 type Channel = {
     id: number;
@@ -47,7 +40,7 @@ type AppConfig = Record<string, string>;
 
 // ─── Locations Tab ────────────────────────────────────────────────────────────
 
-const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
+const LocationsTab: React.FC<{ locked: boolean }> = ({ locked }) => {
     const [locations, setLocations] = useState<Location[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -69,10 +62,7 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
         if (q.length < 2) { setSearchResults([]); return; }
         setSearching(true);
         try {
-            const res = await api.get<{ data: WilayahResult[] }>(`/wilayah/search?q=${encodeURIComponent(q)}`);
-            // Only show kecamatan (subdistrict) level results
-            const sub = (res.data ?? []).filter(r => r.level === 'kecamatan' || r.level === 'subdistrict');
-            setSearchResults(sub.length > 0 ? sub : (res.data ?? []).slice(0, 8));
+            setSearchResults(await searchRegions(q, MONITOR_LEVELS));
         } catch { setSearchResults([]); }
         finally { setSearching(false); }
     }, []);
@@ -85,15 +75,7 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
     const addLocation = async (result: WilayahResult) => {
         setAdding(true);
         try {
-            await api.post('/locations', {
-                label: result.name,
-                province_code: result.code.substring(0, 2) + '.00.00.0000',
-                province_name: result.province ?? '',
-                district_code: result.code.substring(0, 5) + '.00.0000',
-                district_name: result.district ?? '',
-                subdistrict_code: result.code,
-                subdistrict_name: result.name,
-            });
+            await api.post('/locations', toLocationPayload(result));
             toast.success(`Lokasi "${result.name}" ditambahkan`);
             setSearchQuery('');
             setSearchResults([]);
@@ -125,11 +107,11 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
             {/* Search & add */}
             <div className="relative">
                 <Input
-                    aria-label="Cari kecamatan untuk dipantau"
-                    placeholder={demoMode ? 'Pencarian dimatikan dalam mode demo' : 'Ketik nama kecamatan, minimal 2 huruf'}
+                    aria-label="Cari kecamatan atau kabupaten/kota untuk dipantau"
+                    placeholder={locked ? 'Pencarian dimatikan: pengaturan terkunci' : 'Ketik nama kecamatan atau kabupaten/kota, minimal 2 huruf'}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    disabled={demoMode}
+                    disabled={locked}
                 />
                 {(searching || searchResults.length > 0) && (
                     <div className="absolute z-20 top-full mt-1 w-full bg-card border rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -143,16 +125,14 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                 disabled={adding}
                             >
                                 <div>
-                                    <div className="font-medium">{r.name}</div>
-                                    <div className="text-xs text-muted-foreground">
-                                        {[r.district, r.province].filter(Boolean).join(', ')}
-                                    </div>
+                                    <div className="font-medium">{r.name} <span className="font-normal text-muted-foreground">({levelLabel(r.level)})</span></div>
+                                    <div className="text-xs text-muted-foreground">{regionContext(r)}</div>
                                 </div>
                                 <Plus className="w-4 h-4 shrink-0 text-green-700 dark:text-green-400" />
                             </button>
                         ))}
                         {!searching && searchResults.length === 0 && searchQuery.length >= 2 && (
-                            <div className="p-3 text-sm text-muted-foreground">Tidak ada kecamatan dengan nama itu. Periksa ejaannya.</div>
+                            <div className="p-3 text-sm text-muted-foreground">Tidak ada kecamatan atau kabupaten/kota dengan nama itu. Periksa ejaannya.</div>
                         )}
                     </div>
                 )}
@@ -163,7 +143,7 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                 <div className="py-6 text-center text-muted-foreground text-sm">Memuat lokasi...</div>
             ) : locations.length === 0 ? (
                 <div className="py-6 text-center text-muted-foreground text-sm">
-                    Belum ada lokasi yang dipantau. Cari kecamatan di kolom atas untuk menambahkannya.
+                    Belum ada lokasi yang dipantau. Cari kecamatan atau kabupaten/kota di kolom atas untuk menambahkannya.
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -188,8 +168,8 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                     aria-checked={loc.enabled}
                                     aria-label={`Pantau ${loc.label ?? loc.subdistrict_name}`}
                                     onClick={() => toggleLocation(loc.id, loc.enabled)}
-                                    disabled={demoMode}
-                                    title={demoMode ? DEMO_TOOLTIP : undefined}
+                                    disabled={locked}
+                                    title={locked ? lockReason() : undefined}
                                 >
                                     {loc.enabled ? 'Aktif' : 'Nonaktif'}
                                 </Button>
@@ -198,8 +178,8 @@ const LocationsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                     size="icon"
                                     aria-label={`Hapus lokasi ${loc.label ?? loc.subdistrict_name}`}
                                     onClick={() => deleteLocation(loc.id, loc.label ?? loc.subdistrict_name)}
-                                    disabled={demoMode}
-                                    title={demoMode ? DEMO_TOOLTIP : undefined}
+                                    disabled={locked}
+                                    title={locked ? lockReason() : undefined}
                                 >
                                     <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
                                 </Button>
@@ -238,7 +218,7 @@ const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string
     ],
 };
 
-const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
+const ChannelsTab: React.FC<{ locked: boolean }> = ({ locked }) => {
     const [channels, setChannels] = useState<Channel[]>([]);
     const [loading, setLoading] = useState(true);
     const [addType, setAddType] = useState<string>('telegram');
@@ -323,8 +303,8 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                     aria-checked={ch.enabled}
                                     aria-label={`Channel ${ch.channel_type}`}
                                     onClick={() => toggleChannel(ch.id, ch.enabled)}
-                                    disabled={demoMode}
-                                    title={demoMode ? DEMO_TOOLTIP : undefined}
+                                    disabled={locked}
+                                    title={locked ? lockReason() : undefined}
                                 >
                                     {ch.enabled ? 'Aktif' : 'Nonaktif'}
                                 </Button>
@@ -332,13 +312,13 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => testChannel(ch.id)}
-                                    disabled={demoMode || testing === ch.id}
-                                    title={demoMode ? DEMO_TOOLTIP : undefined}
+                                    disabled={locked || testing === ch.id}
+                                    title={locked ? lockReason() : undefined}
                                 >
                                     <Send className="w-4 h-4 mr-1.5" aria-hidden="true" />
                                     {testing === ch.id ? 'Mengirim...' : 'Kirim tes'}
                                 </Button>
-                                <Button variant="ghost" size="icon" aria-label={`Hapus channel ${ch.channel_type}`} onClick={() => deleteChannel(ch.id)} disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
+                                <Button variant="ghost" size="icon" aria-label={`Hapus channel ${ch.channel_type}`} onClick={() => deleteChannel(ch.id)} disabled={locked} title={locked ? lockReason() : undefined}>
                                     <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" aria-hidden="true" />
                                 </Button>
                             </div>
@@ -381,7 +361,7 @@ const ChannelsTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                         </div>
                     ))}
                 </div>
-                <Button onClick={addChannel} disabled={demoMode || saving} className="w-full" title={demoMode ? DEMO_TOOLTIP : undefined}>
+                <Button onClick={addChannel} disabled={locked || saving} className="w-full" title={locked ? lockReason() : undefined}>
                     <Plus className="w-4 h-4 mr-2" />
                     {saving ? 'Menyimpan...' : `Tambah channel ${addType}`}
                 </Button>
@@ -414,13 +394,13 @@ const CONFIG_FIELDS: ConfigField[] = [
         { value: 'extreme', label: 'Hanya ekstrem' },
     ] },
     { key: 'quiet_hours_enabled', label: 'Aktifkan jam tenang', hint: 'Selama jam tenang notifikasi tidak dikirim.', options: YES_NO },
-    { key: 'quiet_hours_start', label: 'Jam tenang mulai (WIB)', type: 'time' },
-    { key: 'quiet_hours_end', label: 'Jam tenang selesai (WIB)', type: 'time' },
+    { key: 'quiet_hours_start', label: 'Jam tenang mulai', type: 'time', hint: 'Mengikuti zona waktu server (variabel TZ).' },
+    { key: 'quiet_hours_end', label: 'Jam tenang selesai', type: 'time' },
     { key: 'quiet_hours_override_severe', label: 'Tetap kirim peringatan berat dan ekstrem saat jam tenang', options: YES_NO },
     { key: 'bmkg_api_url', label: 'URL API BMKG', placeholder: 'https://bmkg-api.dhanypedia.com', readOnly: true, hint: 'Diatur lewat variabel BMKG_API_URL di server.' },
 ];
 
-const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
+const ConfigTab: React.FC<{ locked: boolean }> = ({ locked }) => {
     const [config, setConfig] = useState<AppConfig>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -489,7 +469,7 @@ const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                             id={`config-${f.key}`}
                             value={config[f.key] ?? f.options[0].value}
                             onChange={e => setConfig(c => ({ ...c, [f.key]: e.target.value }))}
-                            disabled={demoMode}
+                            disabled={locked}
                             className="flex h-11 md:h-10 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {f.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -502,21 +482,21 @@ const ConfigTab: React.FC<{ demoMode: boolean }> = ({ demoMode }) => {
                             placeholder={f.placeholder}
                             value={config[f.key] ?? ''}
                             onChange={e => setConfig(c => ({ ...c, [f.key]: e.target.value }))}
-                            disabled={demoMode}
+                            disabled={locked}
                         />
                     )}
                     {f.hint && <p className="text-xs text-muted-foreground">{f.hint}</p>}
                 </div>
             ))}
-            <Button onClick={save} disabled={demoMode || saving} className="w-full mt-2" title={demoMode ? DEMO_TOOLTIP : undefined}>
+            <Button onClick={save} disabled={locked || saving} className="w-full mt-2" title={locked ? lockReason() : undefined}>
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? 'Menyimpan...' : 'Simpan konfigurasi'}
             </Button>
             <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={exportConfig} className="flex-1" disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
+                <Button variant="outline" onClick={exportConfig} className="flex-1" disabled={locked} title={locked ? lockReason() : undefined}>
                     <Download className="w-4 h-4 mr-2" aria-hidden="true" /> Ekspor JSON
                 </Button>
-                <Button variant="outline" onClick={importConfig} className="flex-1" disabled={demoMode} title={demoMode ? DEMO_TOOLTIP : undefined}>
+                <Button variant="outline" onClick={importConfig} className="flex-1" disabled={locked} title={locked ? lockReason() : undefined}>
                     <Upload className="w-4 h-4 mr-2" aria-hidden="true" /> Impor JSON
                 </Button>
             </div>
@@ -578,7 +558,7 @@ const SystemTab: React.FC = () => {
 export const SettingsForm: React.FC = () => {
     const status = useStore(engineStatus);
     const admin = useStore(isAdmin);
-    const demoMode = status.demo_mode && !admin;
+    const locked = status.write_locked && !admin;
 
     useEffect(() => { fetchEngineStatus(); }, []);
 
@@ -588,13 +568,17 @@ export const SettingsForm: React.FC = () => {
                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Pengaturan</h1>
                 <p className="text-muted-foreground">Lokasi yang dipantau, channel notifikasi, dan jadwal pengecekan.</p>
             </div>
-            {/* Demo Mode Banner */}
-            {demoMode && (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
-                    <Info className="w-4 h-4 shrink-0" />
-                    <span>
-                        <strong>Mode demo.</strong> Pengaturan tidak bisa diubah di sini. Pasang instance sendiri untuk memakai semua fitur.
-                    </span>
+            {status.write_locked && (locked || !status.demo_mode) && (
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
+                    <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
+                        <span>
+                            {status.demo_mode && <><strong>Mode demo.</strong> Pengaturan tidak bisa diubah di sini. Pasang instance sendiri untuk memakai semua fitur.</>}
+                            {!status.demo_mode && !admin && <><strong>Pengaturan terkunci.</strong> Masuk sebagai admin untuk mengubahnya.</>}
+                            {!status.demo_mode && admin && <>Anda masuk sebagai admin.</>}
+                        </span>
+                    </div>
+                    {!status.demo_mode && <AdminLogin expanded idPrefix="settings-admin" />}
                 </div>
             )}
 
@@ -611,11 +595,11 @@ export const SettingsForm: React.FC = () => {
                         <CardHeader>
                             <CardTitle className="text-lg">Lokasi yang dipantau</CardTitle>
                             <CardDescription>
-                                Tambahkan kecamatan yang ingin dipantau. Setiap peringatan BMKG dicocokkan dengan daftar ini.
+                                Tambahkan kecamatan atau kabupaten/kota yang ingin dipantau. Setiap peringatan BMKG dicocokkan dengan daftar ini.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <LocationsTab demoMode={demoMode} />
+                            <LocationsTab locked={locked} />
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -629,7 +613,7 @@ export const SettingsForm: React.FC = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChannelsTab demoMode={demoMode} />
+                            <ChannelsTab locked={locked} />
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -643,7 +627,7 @@ export const SettingsForm: React.FC = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ConfigTab demoMode={demoMode} />
+                            <ConfigTab locked={locked} />
                         </CardContent>
                     </Card>
                 </TabsContent>

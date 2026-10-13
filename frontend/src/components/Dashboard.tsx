@@ -3,11 +3,11 @@ import { useStore } from '@nanostores/react';
 import { toast } from 'sonner';
 import {
     engineStatus, engineState, activeAlerts, alertsState, isAdmin,
-    adminLogin, adminLogout, fetchEngineStatus, fetchActiveAlerts,
+    fetchEngineStatus, fetchActiveAlerts, lockReason,
 } from '@/stores/appStore';
 import type { Alert } from '@/stores/appStore';
-import { AlertTriangle, CalendarDays, Clock, ExternalLink, Info, Lock, LogOut, MapPin, RefreshCw, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { AlertTriangle, CalendarDays, Clock, ExternalLink, Info, MapPin, RefreshCw, X } from 'lucide-react';
+import { AdminLogin } from '@/components/AdminLogin';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { WarningMap } from '@/components/WarningMap';
@@ -28,7 +28,6 @@ type EarthquakeEvent = {
 type FeedState = 'loading' | 'ready' | 'error';
 
 const DEFAULT_POLL_INTERVAL_SEC = 300;
-const DEMO_TOOLTIP = 'Mode demo: pasang instance sendiri untuk mengubah konfigurasi';
 
 // BMKG writes "Tidak berpotensi tsunami" for the common case, so "berpotensi" alone is not enough
 const hasTsunamiPotential = (text: string | null) => {
@@ -68,8 +67,6 @@ export const Dashboard: React.FC = () => {
     const [eqFeed, setEqFeed] = useState<EarthquakeEvent[]>([]);
     const [eqState, setEqState] = useState<FeedState>('loading');
     const [checkingNow, setCheckingNow] = useState(false);
-    const [showAdminLogin, setShowAdminLogin] = useState(false);
-    const [adminPw, setAdminPw] = useState('');
     const [locationCount, setLocationCount] = useState<number | null>(null);
     const [alertStats, setAlertStats] = useState<{ total_alerts: number; alerts_this_month: number } | null>(null);
     const [pollIntervalSec, setPollIntervalSec] = useState(DEFAULT_POLL_INTERVAL_SEC);
@@ -142,24 +139,7 @@ export const Dashboard: React.FC = () => {
 
     const closeModal = useCallback(() => setSelectedAlert(null), []);
 
-    const demoMode = status.demo_mode && !admin;
-
-    const handleAdminLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const ok = await adminLogin(adminPw);
-        if (ok) {
-            toast.success('Berhasil masuk sebagai admin');
-            setShowAdminLogin(false);
-            setAdminPw('');
-        } else {
-            toast.error('Kata sandi salah');
-        }
-    };
-
-    const handleAdminLogout = () => {
-        adminLogout();
-        toast.info('Anda keluar dari mode admin');
-    };
+    const locked = status.write_locked && !admin;
 
     const toggleEngine = async () => {
         try {
@@ -216,52 +196,18 @@ export const Dashboard: React.FC = () => {
     return (
         <>
         <div className="flex flex-col flex-1 gap-6">
-            {status.demo_mode && (
+            {status.write_locked && (
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950 dark:border-amber-700 text-amber-800 dark:text-amber-200 text-sm">
                     <div className="flex items-center gap-2">
                         <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
                         <span>
-                            {admin ? (
-                                <><strong>Mode demo (admin).</strong> Anda masuk sebagai admin, semua fitur aktif.</>
-                            ) : (
-                                <><strong>Mode demo.</strong> Anda melihat demo langsung, pengaturan tidak bisa diubah.</>
-                            )}
+                            {status.demo_mode && admin && <><strong>Mode demo (admin).</strong> Anda masuk sebagai admin, semua fitur aktif.</>}
+                            {status.demo_mode && !admin && <><strong>Mode demo.</strong> Anda melihat demo langsung, pengaturan tidak bisa diubah.</>}
+                            {!status.demo_mode && admin && <>Anda masuk sebagai admin.</>}
+                            {!status.demo_mode && !admin && <><strong>Pengaturan terkunci.</strong> Masuk sebagai admin untuk mengubah pengaturan atau menjalankan pengecekan.</>}
                         </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        {admin ? (
-                            <Button variant="outline" size="sm" onClick={handleAdminLogout}>
-                                <LogOut className="w-4 h-4 mr-1.5" aria-hidden="true" /> Keluar
-                            </Button>
-                        ) : showAdminLogin ? (
-                            <form onSubmit={handleAdminLogin} className="flex items-center gap-2">
-                                <label htmlFor="admin-password" className="sr-only">Kata sandi admin</label>
-                                <Input
-                                    id="admin-password"
-                                    type="password"
-                                    autoComplete="current-password"
-                                    placeholder="Kata sandi admin"
-                                    value={adminPw}
-                                    onChange={e => setAdminPw(e.target.value)}
-                                    className="w-44 text-foreground"
-                                    autoFocus
-                                />
-                                <Button type="submit" size="sm">Masuk</Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label="Batal masuk admin"
-                                    onClick={() => { setShowAdminLogin(false); setAdminPw(''); }}
-                                >
-                                    <X className="w-4 h-4" aria-hidden="true" />
-                                </Button>
-                            </form>
-                        ) : (
-                            <Button variant="outline" size="sm" onClick={() => setShowAdminLogin(true)}>
-                                <Lock className="w-4 h-4 mr-1.5" aria-hidden="true" /> Masuk admin
-                            </Button>
-                        )}
-                    </div>
+                    <AdminLogin idPrefix="dashboard-admin" />
                 </div>
             )}
 
@@ -284,8 +230,8 @@ export const Dashboard: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={checkNow}
-                        disabled={demoMode || checkingNow || !status.running}
-                        title={demoMode ? DEMO_TOOLTIP : 'Cek peringatan BMKG tanpa menunggu jadwal'}
+                        disabled={locked || checkingNow || !status.running}
+                        title={locked ? lockReason() : 'Cek peringatan BMKG tanpa menunggu jadwal'}
                     >
                         <RefreshCw className={`w-4 h-4 mr-1.5 ${checkingNow ? 'animate-spin' : ''}`} aria-hidden="true" />
                         {checkingNow ? 'Mengecek...' : 'Cek sekarang'}
@@ -293,8 +239,8 @@ export const Dashboard: React.FC = () => {
                     <Button
                         variant={status.running ? 'destructive' : 'default'}
                         onClick={toggleEngine}
-                        disabled={demoMode || statusState !== 'ready'}
-                        title={demoMode ? DEMO_TOOLTIP : undefined}
+                        disabled={locked || statusState !== 'ready'}
+                        title={locked ? lockReason() : undefined}
                     >
                         {status.running ? 'Hentikan pemantauan' : 'Mulai pemantauan'}
                     </Button>
@@ -333,8 +279,8 @@ export const Dashboard: React.FC = () => {
                         <div className="text-2xl font-bold">{locationCount ?? '-'}</div>
                         <p className="text-xs text-muted-foreground">
                             {locationCount === 0
-                                ? <a href="/settings" className="underline underline-offset-2 text-blue-600 dark:text-blue-400">Tambah kecamatan di Pengaturan</a>
-                                : 'Kecamatan aktif'}
+                                ? <a href="/settings" className="underline underline-offset-2 text-blue-600 dark:text-blue-400">Tambah lokasi di Pengaturan</a>
+                                : 'Kecamatan atau kabupaten/kota aktif'}
                         </p>
                     </CardContent>
                 </Card>
